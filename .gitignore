@@ -25,3 +25,5 @@ public/data/
 *.njsproj
 *.sln
 *.sw?
+
+.playwright-mcp/
