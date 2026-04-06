@@ -6,7 +6,7 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch: # Allow manual trigger
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
