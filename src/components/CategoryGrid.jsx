@@ -1,12 +1,15 @@
 import styled from "styled-components";
 
+const GridWrapper = styled.div`
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+`;
+
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 1px;
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 0 24px 64px;
   background: ${({ theme }) => theme.colors.border};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radii.md};
@@ -63,20 +66,22 @@ const Status = styled.span`
 export default function CategoryGrid({ categories, loaded, onSelect }) {
   const keys = Object.keys(categories);
   return (
-    <Grid>
-      {keys.map((key, i) => (
-        <Card key={key} onClick={() => onSelect(key)}>
-          <Number>{String(i + 1).padStart(2, "0")}</Number>
-          <Info>
-            <Name>{key}</Name>
-            <Status>
-              {loaded[key]
-                ? `${loaded[key]} open problems`
-                : "Select to browse"}
-            </Status>
-          </Info>
-        </Card>
-      ))}
-    </Grid>
+    <GridWrapper>
+      <Grid>
+        {keys.map((key, i) => (
+          <Card key={key} onClick={() => onSelect(key)}>
+            <Number>{String(i + 1).padStart(2, "0")}</Number>
+            <Info>
+              <Name>{key}</Name>
+              <Status>
+                {loaded[key]
+                  ? `${loaded[key]} open problems`
+                  : "Select to browse"}
+              </Status>
+            </Info>
+          </Card>
+        ))}
+      </Grid>
+    </GridWrapper>
   );
 }

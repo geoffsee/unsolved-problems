@@ -79,29 +79,8 @@ async function main() {
     // Small extra wait for any remaining renders
     await new Promise((r) => setTimeout(r, 500));
 
-    // Collect styled-components CSS that page.content() misses
-    const styleCSS = await page.evaluate(() => {
-      const sheets = document.querySelectorAll('style[data-styled]');
-      let css = '';
-      for (const sheet of sheets) {
-        const rules = sheet.sheet?.cssRules;
-        if (rules) {
-          for (const rule of rules) css += rule.cssText + '\n';
-        }
-      }
-      return css;
-    });
-
     // Extract the fully rendered HTML
-    let html = await page.content();
-
-    // Remove the empty styled-components tag so it doesn't conflict with
-    // runtime rehydration, and inject the captured CSS as a plain <style>
-    // that provides initial styles until the client JS takes over.
-    html = html.replace(/<style data-styled="active"[^>]*><\/style>/, '');
-    if (styleCSS) {
-      html = html.replace('</head>', `<style id="prerender-css">${styleCSS}</style></head>`);
-    }
+    const html = await page.content();
 
     // Write back to dist
     writeFileSync(join(DIST, "index.html"), html);
