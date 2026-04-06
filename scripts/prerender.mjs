@@ -92,13 +92,15 @@ async function main() {
       return css;
     });
 
-    // Extract the fully rendered HTML and inject collected styles
+    // Extract the fully rendered HTML
     let html = await page.content();
+
+    // Remove the empty styled-components tag so it doesn't conflict with
+    // runtime rehydration, and inject the captured CSS as a plain <style>
+    // that provides initial styles until the client JS takes over.
+    html = html.replace(/<style data-styled="active"[^>]*><\/style>/, '');
     if (styleCSS) {
-      html = html.replace(
-        /<style data-styled="active"[^>]*><\/style>/,
-        `<style data-styled="active" data-styled-version="6.3.12">${styleCSS}</style>`
-      );
+      html = html.replace('</head>', `<style id="prerender-css">${styleCSS}</style></head>`);
     }
 
     // Write back to dist
