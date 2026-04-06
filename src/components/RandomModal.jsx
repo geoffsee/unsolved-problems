@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import { getEnrichment } from "../wiki";
 
 const Overlay = styled.div`
   position: fixed;
@@ -91,6 +92,34 @@ const BtnClose = styled(Btn)`
   }
 `;
 
+const EnrichmentBlock = styled.div`
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const EnrichmentField = styled.span`
+  font-family: ${({ theme }) => theme.fonts.mono};
+  font-size: 0.7rem;
+  color: ${({ theme }) => theme.colors.textDim};
+  background: ${({ theme }) => theme.colors.bgHover};
+  padding: 2px 8px;
+  border-radius: ${({ theme }) => theme.radii.pill};
+  margin-right: 8px;
+`;
+
+const AiNote = styled.div`
+  font-family: ${({ theme }) => theme.fonts.mono};
+  font-size: 0.62rem;
+  color: ${({ theme }) => theme.colors.textDim};
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 10px;
+`;
+
 const LoadingText = styled.div`
   text-align: center;
   color: ${({ theme }) => theme.colors.textDim};
@@ -110,6 +139,21 @@ export default function RandomModal({ problem, onNext, onClose }) {
             <Category>{problem.category}</Category>
             <SectionName>{problem.section}</SectionName>
             <ProblemText>{problem.text}</ProblemText>
+            {(() => {
+              const enrichment = getEnrichment(problem.text);
+              if (!enrichment) return null;
+              return (
+                <EnrichmentBlock>
+                  <div style={{ marginBottom: 6 }}>{enrichment.summary}</div>
+                  <div style={{ marginBottom: 8 }}>{enrichment.significance}</div>
+                  <div>
+                    {enrichment.field && <EnrichmentField>{enrichment.field}</EnrichmentField>}
+                    {enrichment.yearProposed && <EnrichmentField>{enrichment.yearProposed}</EnrichmentField>}
+                  </div>
+                  <AiNote>AI-generated</AiNote>
+                </EnrichmentBlock>
+              );
+            })()}
             <Actions>
               <BtnNext onClick={onNext}>Next</BtnNext>
               <BtnClose onClick={onClose}>Close</BtnClose>

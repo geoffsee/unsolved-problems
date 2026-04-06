@@ -9,6 +9,19 @@ const preloadPromise = fetch(
   .then((d) => { preloaded = d; })
   .catch(() => { /* no preloaded data, will use live API */ });
 
+// AI-generated enrichments (populated by scripts/enrich-data.mjs)
+let enrichments = null;
+fetch(`${import.meta.env.BASE_URL}data/enrichments.json`)
+  .then((r) => (r.ok ? r.json() : null))
+  .then((d) => { enrichments = d; })
+  .catch(() => {});
+
+export function getEnrichment(problemText) {
+  if (!enrichments?.problems) return null;
+  const key = problemText.slice(0, 120);
+  return enrichments.problems[key] || null;
+}
+
 export const CATEGORIES = {
   mathematics: {
     page: "List_of_unsolved_problems_in_mathematics",

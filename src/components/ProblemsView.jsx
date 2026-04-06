@@ -1,5 +1,6 @@
 import { useState } from "react";
 import styled from "styled-components";
+import { getEnrichment } from "../wiki";
 
 const Wrapper = styled.div`
   max-width: 860px;
@@ -121,11 +122,57 @@ const ProblemItem = styled.li`
   color: ${({ theme }) => theme.colors.text};
   border-left: 2px solid transparent;
   transition: border-color 0.15s, background 0.15s;
+  cursor: ${({ $hasEnrichment }) => ($hasEnrichment ? "pointer" : "default")};
 
   &:hover {
     border-left-color: ${({ theme }) => theme.colors.accent};
     background: ${({ theme }) => theme.colors.bgHover};
   }
+`;
+
+const EnrichmentPanel = styled.div`
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: ${({ theme }) => theme.colors.bgSection};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  font-size: 0.82rem;
+  line-height: 1.6;
+`;
+
+const EnrichmentSummary = styled.p`
+  color: ${({ theme }) => theme.colors.textBright};
+  margin-bottom: 6px;
+`;
+
+const EnrichmentSignificance = styled.p`
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: 8px;
+`;
+
+const EnrichmentMeta = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+`;
+
+const Tag = styled.span`
+  font-family: ${({ theme }) => theme.fonts.mono};
+  font-size: 0.7rem;
+  color: ${({ theme }) => theme.colors.textDim};
+  background: ${({ theme }) => theme.colors.bgHover};
+  padding: 2px 8px;
+  border-radius: ${({ theme }) => theme.radii.pill};
+`;
+
+const AiLabel = styled.span`
+  font-family: ${({ theme }) => theme.fonts.mono};
+  font-size: 0.62rem;
+  color: ${({ theme }) => theme.colors.textDim};
+  margin-left: auto;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 `;
 
 const ProblemNumber = styled.span`
@@ -166,6 +213,32 @@ const Error = styled.div`
   font-size: 0.9rem;
 `;
 
+function ProblemItemExpanded({ text, index }) {
+  const enrichment = getEnrichment(text);
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <ProblemItem
+      $hasEnrichment={!!enrichment}
+      onClick={() => enrichment && setExpanded(!expanded)}
+    >
+      <ProblemNumber>{index + 1}.</ProblemNumber>
+      {text}
+      {expanded && enrichment && (
+        <EnrichmentPanel>
+          <EnrichmentSummary>{enrichment.summary}</EnrichmentSummary>
+          <EnrichmentSignificance>{enrichment.significance}</EnrichmentSignificance>
+          <EnrichmentMeta>
+            {enrichment.field && <Tag>{enrichment.field}</Tag>}
+            {enrichment.yearProposed && <Tag>{enrichment.yearProposed}</Tag>}
+            <AiLabel>AI-generated</AiLabel>
+          </EnrichmentMeta>
+        </EnrichmentPanel>
+      )}
+    </ProblemItem>
+  );
+}
+
 function Section({ heading, problems, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -179,10 +252,7 @@ function Section({ heading, problems, defaultOpen }) {
       {open && (
         <ProblemList>
           {problems.map((p, i) => (
-            <ProblemItem key={i}>
-              <ProblemNumber>{i + 1}.</ProblemNumber>
-              {p}
-            </ProblemItem>
+            <ProblemItemExpanded key={i} text={p} index={i} />
           ))}
         </ProblemList>
       )}

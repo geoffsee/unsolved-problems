@@ -79,8 +79,27 @@ async function main() {
     // Small extra wait for any remaining renders
     await new Promise((r) => setTimeout(r, 500));
 
-    // Extract the fully rendered HTML
-    const html = await page.content();
+    // Collect styled-components CSS that page.content() misses
+    const styleCSS = await page.evaluate(() => {
+      const sheets = document.querySelectorAll('style[data-styled]');
+      let css = '';
+      for (const sheet of sheets) {
+        const rules = sheet.sheet?.cssRules;
+        if (rules) {
+          for (const rule of rules) css += rule.cssText + '\n';
+        }
+      }
+      return css;
+    });
+
+    // Extract the fully rendered HTML and inject collected styles
+    let html = await page.content();
+    if (styleCSS) {
+      html = html.replace(
+        /<style data-styled="active"[^>]*><\/style>/,
+        `<style data-styled="active" data-styled-version="6.3.12">${styleCSS}</style>`
+      );
+    }
 
     // Write back to dist
     writeFileSync(join(DIST, "index.html"), html);

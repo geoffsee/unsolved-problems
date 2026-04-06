@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:full": "npm run fetch-data && vite build && npm run prerender",
+    "build:full": "npm run fetch-data && npm run enrich-data && vite build && npm run prerender",
     "fetch-data": "node scripts/fetch-data.mjs",
+    "enrich-data": "node scripts/enrich-data.mjs",
     "prerender": "node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -18,6 +19,7 @@
     "styled-components": "^6.3.12"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

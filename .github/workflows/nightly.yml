@@ -34,6 +34,18 @@ jobs:
       - name: Fetch latest problems from Wikipedia
         run: npm run fetch-data
 
+      - name: Restore enrichment cache
+        uses: actions/cache@v4
+        with:
+          path: public/data/enrichments.json
+          key: enrichments-v1
+
+      - name: Enrich problems with AI
+        run: npm run enrich-data
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        continue-on-error: true
+
       - name: Build
         run: npx vite build
 
