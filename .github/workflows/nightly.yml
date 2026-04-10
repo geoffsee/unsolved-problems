@@ -17,6 +17,10 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  # Rotates every 23 hours — floor(epoch_seconds / 82800)
+  CACHE_EPOCH: ${{ github.run_id }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,17 +35,35 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Fetch latest problems from Wikipedia
-        run: bun run fetch-data
+      - name: Compute cache key
+        id: cache-key
+        run: echo "epoch=$(( $(date +%s) / 82800 ))" >> "$GITHUB_OUTPUT"
 
-      - name: Restore enrichment cache
+      - name: Restore data cache
         uses: actions/cache@v4
         with:
-          path: apps/client/public/data/enrichments.json
-          key: enrichments-v1
+          path: |
+            apps/client/public/data/problems.json
+            apps/client/public/data/news.json
+            apps/client/public/data/enrichments.json
+          key: data-${{ steps.cache-key.outputs.epoch }}
+          restore-keys: data-
+
+      - name: Fetch latest problems from Wikipedia
+        run: |
+          if [ -f public/data/problems.json ]; then
+            echo "Using cached problems.json"
+          else
+            bun run fetch-data
+          fi
 
       - name: Fetch frontier research news
-        run: bun run fetch-news
+        run: |
+          if [ -f public/data/news.json ]; then
+            echo "Using cached news.json"
+          else
+            bun run fetch-news
+          fi
         env:
           PERIGON_API_KEY: ${{ secrets.PERIGON_API_KEY }}
 
