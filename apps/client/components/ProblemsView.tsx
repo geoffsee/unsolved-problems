@@ -127,7 +127,7 @@ function Section({ heading, problems, defaultOpen }: SectionProps) {
         borderBottom="1px solid"
         borderColor="app.border"
         py={3}
-        px={0}
+        px={3}
         h="auto"
         color="app.textBright"
         fontFamily="heading"

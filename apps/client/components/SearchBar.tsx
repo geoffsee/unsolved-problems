@@ -23,7 +23,7 @@ export default function SearchBar({ search, onSearch, onRandom, showSearch, plac
       borderBottom="1px solid"
       borderColor="app.border"
     >
-      <Flex gap={2.5} align="center" direction={{ base: "column", md: "row" }}>
+      <Flex gap={2.5} align="center" justify={showSearch ? "flex-start" : "center"} direction={{ base: "column", md: "row" }}>
         {showSearch && (
           <Input
             flex={1}
