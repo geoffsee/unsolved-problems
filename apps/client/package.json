@@ -7,6 +7,7 @@
     "fetch-data": "node scripts/fetch-data.mjs",
     "fetch-news": "node scripts/fetch-news.mjs",
     "enrich-data": "node scripts/enrich-data.mjs",
+    "compress-data": "node scripts/compress-data.mjs",
     "preview": "vike build && vike preview",
     "lint": "eslint .",
     "prod": "vike build && node ./dist/server/index.mjs"
