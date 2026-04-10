@@ -27,3 +27,4 @@ public/data/
 *.sw?
 
 .playwright-mcp/
+.env.secrets

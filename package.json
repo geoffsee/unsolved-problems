@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:full": "npm run fetch-data && npm run enrich-data && vite build && npm run prerender",
+    "build:full": "npm run fetch-data && npm run fetch-news && npm run enrich-data && vite build && npm run prerender",
     "fetch-data": "node scripts/fetch-data.mjs",
+    "fetch-news": "node scripts/fetch-news.mjs",
     "enrich-data": "node scripts/enrich-data.mjs",
     "prerender": "node scripts/prerender.mjs",
     "lint": "eslint .",

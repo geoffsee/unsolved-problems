@@ -7,6 +7,8 @@ import ProblemsView from "./components/ProblemsView";
 import RandomModal from "./components/RandomModal";
 import Header from "./components/Header";
 import SearchBar from "./components/SearchBar";
+import NewsFeed from "./components/NewsFeed";
+import { fetchFrontierNews } from "./gdelt";
 
 const GlobalStyle = createGlobalStyle`
   *, *::before, *::after {
@@ -49,11 +51,27 @@ function App() {
   const [randomPool, setRandomPool] = useState([]);
   const [randomProblem, setRandomProblem] = useState(null);
   const [loadedCategories, setLoadedCategories] = useState({});
+  const [news, setNews] = useState([]);
 
   const selectCategory = useCallback(async (key) => {
     setActiveCategory(key);
     setSearch("");
     setError(null);
+    setNews([]);
+
+    if (CATEGORIES[key].type === "news") {
+      setLoading(true);
+      setSections([]);
+      try {
+        const data = await fetchFrontierNews();
+        setNews(data);
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     if (cache[key]) {
       setSections(cache[key]);
@@ -162,6 +180,11 @@ function App() {
         onSearch={setSearch}
         onRandom={pickRandom}
         showSearch={!!activeCategory}
+        placeholder={
+          activeCategory && CATEGORIES[activeCategory].type === "news"
+            ? "Filter news..."
+            : "Filter problems..."
+        }
       />
 
       {!activeCategory ? (
@@ -169,6 +192,14 @@ function App() {
           categories={CATEGORIES}
           loaded={loadedCategories}
           onSelect={selectCategory}
+        />
+      ) : CATEGORIES[activeCategory].type === "news" ? (
+        <NewsFeed
+          news={news}
+          loading={loading}
+          error={error}
+          search={search}
+          onBack={goBack}
         />
       ) : (
         <ProblemsView

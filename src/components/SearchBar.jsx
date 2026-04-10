@@ -62,13 +62,13 @@ const RandomButton = styled.button`
   }
 `;
 
-export default function SearchBar({ search, onSearch, onRandom, showSearch }) {
+export default function SearchBar({ search, onSearch, onRandom, showSearch, placeholder }) {
   return (
     <Bar>
       {showSearch && (
         <Input
           type="text"
-          placeholder="Filter problems..."
+          placeholder={placeholder || "Filter..."}
           value={search}
           onChange={(e) => onSearch(e.target.value)}
         />

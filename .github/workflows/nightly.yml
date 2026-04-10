@@ -40,6 +40,11 @@ jobs:
           path: public/data/enrichments.json
           key: enrichments-v1
 
+      - name: Fetch frontier research news
+        run: npm run fetch-news
+        env:
+          PERIGON_API_KEY: ${{ secrets.PERIGON_API_KEY }}
+
       - name: Enrich problems with AI
         run: npm run enrich-data
         env:

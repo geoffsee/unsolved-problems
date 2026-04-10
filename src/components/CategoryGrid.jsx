@@ -74,7 +74,9 @@ export default function CategoryGrid({ categories, loaded, onSelect }) {
             <Info>
               <Name>{key}</Name>
               <Status>
-                {loaded[key]
+                {categories[key].type === "news"
+                  ? "Latest breakthroughs"
+                  : loaded[key]
                   ? `${loaded[key]} open problems`
                   : "Select to browse"}
               </Status>

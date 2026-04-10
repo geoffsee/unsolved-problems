@@ -68,6 +68,11 @@ export const CATEGORIES = {
     emoji: "\u{1F4C8}",
     color: "#636E72",
   },
+  "frontier research": {
+    type: "news",
+    emoji: "\u{1F52C}",
+    color: "#8a9bb5",
+  },
 };
 
 async function wikiRequest(params) {
