@@ -17,10 +17,6 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-env:
-  # Rotates every 23 hours — floor(epoch_seconds / 82800)
-  CACHE_EPOCH: ${{ github.run_id }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,18 +31,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Compute cache key
-        id: cache-key
-        run: echo "epoch=$(( $(date +%s) / 82800 ))" >> "$GITHUB_OUTPUT"
-
       - name: Restore data cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
             apps/client/public/data/enrichments.json
-          key: data-${{ steps.cache-key.outputs.epoch }}
+          key: data-${{ github.run_id }}
           restore-keys: data-
 
       - name: Fetch latest problems from Wikipedia
@@ -72,6 +64,15 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         continue-on-error: true
+
+      - name: Save data cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            apps/client/public/data/problems.json
+            apps/client/public/data/news.json
+            apps/client/public/data/enrichments.json
+          key: data-${{ github.run_id }}
 
       - name: Compress data files
         run: bun run compress-data
