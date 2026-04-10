@@ -2,7 +2,7 @@
   "scripts": {
     "dev": "vike dev",
     "build": "vike build",
-    "build:full": "npm run fetch-data && npm run fetch-news && npm run enrich-data && npm run build",
+    "build:full": "bun run fetch-data && bun run fetch-news && bun run enrich-data && bun run build",
     "fetch-data": "node scripts/fetch-data.mjs",
     "fetch-news": "node scripts/fetch-news.mjs",
     "enrich-data": "node scripts/enrich-data.mjs",
