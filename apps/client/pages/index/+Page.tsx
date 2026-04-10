@@ -4,6 +4,7 @@ import { CATEGORIES, setEnrichments, type Section, type Category } from "../../l
 import CategoryGrid from "../../components/CategoryGrid";
 import ProblemsView from "../../components/ProblemsView";
 import RandomModal from "../../components/RandomModal";
+import AboutModal from "../../components/AboutModal";
 import Header from "../../components/Header";
 import SearchBar from "../../components/SearchBar";
 import NewsFeed from "../../components/NewsFeed";
@@ -31,6 +32,7 @@ export default function Page() {
   const [search, setSearch] = useState("");
   const [showRandom, setShowRandom] = useState(false);
   const [randomProblem, setRandomProblem] = useState<any | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
 
   const sections = activeCategory && categories[activeCategory]
     ? categories[activeCategory]
@@ -85,6 +87,7 @@ export default function Page() {
         search={search}
         onSearch={setSearch}
         onRandom={pickRandom}
+        onAbout={() => setShowAbout(true)}
         showSearch={!!activeCategory && !isNews}
         placeholder={activeCategory ? `Search in ${activeCategory}...` : "Filter..."}
       />
@@ -123,6 +126,14 @@ export default function Page() {
         isOpen={showRandom}
         onNext={pickRandom}
         onClose={() => setShowRandom(false)}
+      />
+
+      <AboutModal
+        isOpen={showAbout}
+        onClose={() => setShowAbout(false)}
+        totalProblems={Object.values(categories).flat().reduce((n, s) => n + s.problems.length, 0)}
+        totalCategories={Object.keys(categories).length}
+        enrichedCount={Object.keys(enrichments).length}
       />
     </Box>
   );

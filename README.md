@@ -1,16 +1,32 @@
-# React + Vite
+# Catalog of the Unsolved
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A curated index of open questions across scientific disciplines, sourced from Wikipedia's peer-reviewed problem lists. Includes AI-generated enrichments for each problem.
 
-Currently, two official plugins are available:
+**Live site:** [geoffsee.github.io/unsolved-problems](https://geoffsee.github.io/unsolved-problems/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- **React + Vike** (prerendered static site)
+- **Chakra UI** for styling
+- **Wikipedia API** for problem data (fetched at build time)
+- **Claude API** for AI enrichments (summaries, significance, field, year)
+- **GitHub Pages** for hosting, deployed nightly via CI
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development
 
-## Expanding the ESLint configuration
+```bash
+cd apps/client
+bun install
+bun run fetch-data
+bun run fetch-news
+bun run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Data Pipeline
+
+Run by CI nightly or on push to `master`:
+
+1. `fetch-data` — scrapes unsolved problem lists from Wikipedia
+2. `fetch-news` — pulls frontier research articles via Perigon
+3. `enrich-data` — generates structured metadata per problem using Claude
+4. `vike build` — prerenders everything into a static site

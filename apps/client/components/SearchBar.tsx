@@ -4,11 +4,12 @@ interface SearchBarProps {
   search: string;
   onSearch: (value: string) => void;
   onRandom: () => void;
+  onAbout: () => void;
   showSearch: boolean;
   placeholder?: string;
 }
 
-export default function SearchBar({ search, onSearch, onRandom, showSearch, placeholder }: SearchBarProps) {
+export default function SearchBar({ search, onSearch, onRandom, onAbout, showSearch, placeholder }: SearchBarProps) {
   return (
     <Box
       position="sticky"
@@ -16,8 +17,7 @@ export default function SearchBar({ search, onSearch, onRandom, showSearch, plac
       zIndex={10}
       bg="app.bg"
       px={6}
-      pt={2.5}
-      pb={3.5}
+      py={5}
       maxW="860px"
       mx="auto"
       borderBottom="1px solid"
@@ -62,7 +62,27 @@ export default function SearchBar({ search, onSearch, onRandom, showSearch, plac
           w={{ base: "100%", md: "auto" }}
           h="auto"
         >
-          Random problem
+          Random
+        </Button>
+        <Button
+          variant="outline"
+          bg="transparent"
+          color="app.textDim"
+          border="1px solid"
+          borderColor="app.border"
+          borderRadius="sm"
+          px={4.5}
+          py={2}
+          fontSize="0.85rem"
+          fontWeight="normal"
+          cursor="pointer"
+          whiteSpace="nowrap"
+          _hover={{ borderColor: "app.accent", color: "app.accent", bg: "transparent" }}
+          onClick={onAbout}
+          w={{ base: "100%", md: "auto" }}
+          h="auto"
+        >
+          About
         </Button>
       </Flex>
     </Box>
