@@ -26,15 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: npm install
+        run: bun install
 
       - name: Fetch latest problems from Wikipedia
-        run: npm run fetch-data
+        run: bun run fetch-data
 
       - name: Restore enrichment cache
         uses: actions/cache@v4
@@ -43,18 +41,18 @@ jobs:
           key: enrichments-v1
 
       - name: Fetch frontier research news
-        run: npm run fetch-news
+        run: bun run fetch-news
         env:
           PERIGON_API_KEY: ${{ secrets.PERIGON_API_KEY }}
 
       - name: Enrich problems with AI
-        run: npm run enrich-data
+        run: bun run enrich-data
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         continue-on-error: true
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
