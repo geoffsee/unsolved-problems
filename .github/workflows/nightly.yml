@@ -20,16 +20,18 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/client
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Fetch latest problems from Wikipedia
         run: npm run fetch-data
@@ -37,7 +39,7 @@ jobs:
       - name: Restore enrichment cache
         uses: actions/cache@v4
         with:
-          path: public/data/enrichments.json
+          path: apps/client/public/data/enrichments.json
           key: enrichments-v1
 
       - name: Fetch frontier research news
@@ -52,15 +54,12 @@ jobs:
         continue-on-error: true
 
       - name: Build
-        run: npx vite build
-
-      - name: Prerender
-        run: npm run prerender
+        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: apps/client/dist/client
 
   deploy:
     needs: build
