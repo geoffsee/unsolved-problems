@@ -1,4 +1,5 @@
 {
+  "name": "@unsolved-problems/client",
   "scripts": {
     "dev": "vike dev",
     "build": "vike build",
