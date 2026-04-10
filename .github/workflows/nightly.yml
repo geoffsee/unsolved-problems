@@ -37,7 +37,6 @@ jobs:
           path: |
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
-            apps/client/public/data/enrichments.json
           key: data-${{ github.run_id }}
           restore-keys: data-
 
@@ -71,7 +70,6 @@ jobs:
           path: |
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
-            apps/client/public/data/enrichments.json
           key: data-${{ github.run_id }}
 
       - name: Compress data files
