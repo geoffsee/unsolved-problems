@@ -13,7 +13,7 @@ interface PreloadedData {
 // Pre-fetched data loaded at build time (populated by scripts/fetch-data.mjs)
 let preloaded: PreloadedData | null = null;
 const preloadPromise = typeof window !== 'undefined' ? fetch(
-  `/data/problems.json`
+  `${import.meta.env.BASE_URL}data/problems.json`
 )
   .then((r) => (r.ok ? r.json() : null))
   .then((d: PreloadedData) => { preloaded = d; })
@@ -34,7 +34,7 @@ interface EnrichmentData {
 // AI-generated enrichments (populated by scripts/enrich-data.mjs)
 let enrichments: EnrichmentData | null = null;
 if (typeof window !== 'undefined') {
-  fetch(`/data/enrichments.json`)
+  fetch(`${import.meta.env.BASE_URL}data/enrichments.json`)
     .then((r) => (r.ok ? r.json() : null))
     .then((d: EnrichmentData) => { enrichments = d; })
     .catch(() => {});
