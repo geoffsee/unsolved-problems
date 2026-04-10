@@ -10,32 +10,14 @@ interface PreloadedData {
   categories: Record<string, Section[]>;
 }
 
-async function fetchGzJson<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url + '.gz');
-    if (!res.ok) return null;
-    const ds = new DecompressionStream('gzip');
-    const decompressed = res.body!.pipeThrough(ds);
-    const text = await new Response(decompressed).json();
-    return text as T;
-  } catch {
-    // Fallback to uncompressed
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      return await res.json() as T;
-    } catch {
-      return null;
-    }
-  }
-}
-
 // Pre-fetched data loaded at build time (populated by scripts/fetch-data.mjs)
 let preloaded: PreloadedData | null = null;
-const preloadPromise = typeof window !== 'undefined'
-  ? fetchGzJson<PreloadedData>('/data/problems.json')
-      .then((d) => { preloaded = d; })
-  : Promise.resolve();
+const preloadPromise = typeof window !== 'undefined' ? fetch(
+  `/data/problems.json`
+)
+  .then((r) => (r.ok ? r.json() : null))
+  .then((d: PreloadedData) => { preloaded = d; })
+  .catch(() => { /* no preloaded data, will use live API */ }) : Promise.resolve();
 
 interface EnrichmentProblem {
   summary: string;
@@ -52,8 +34,10 @@ interface EnrichmentData {
 // AI-generated enrichments (populated by scripts/enrich-data.mjs)
 let enrichments: EnrichmentData | null = null;
 if (typeof window !== 'undefined') {
-  fetchGzJson<EnrichmentData>('/data/enrichments.json')
-    .then((d) => { enrichments = d; });
+  fetch(`/data/enrichments.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d: EnrichmentData) => { enrichments = d; })
+    .catch(() => {});
 }
 
 export function getEnrichment(problemText: string): EnrichmentProblem | null {

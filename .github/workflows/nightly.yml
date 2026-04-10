@@ -72,9 +72,6 @@ jobs:
             apps/client/public/data/news.json
           key: data-${{ github.run_id }}
 
-      - name: Compress data files
-        run: bun run compress-data
-
       - name: Build
         run: bun run build
 
