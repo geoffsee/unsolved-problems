@@ -16,7 +16,6 @@ const ENRICHMENTS_PATH = resolve("public/data/enrichments.json");
 
 const MODEL = "claude-sonnet-4-20250514";
 const BATCH_SIZE = 20;
-const MAX_NEW_PROBLEMS = 100;
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 2000;
 
@@ -126,11 +125,11 @@ async function main() {
     return;
   }
 
-  const toProcess = needed.slice(0, MAX_NEW_PROBLEMS);
+  const toProcess = needed;
   console.log(
     `  ${allProblems.length} total problems, ${needed.length} need enrichment`
   );
-  console.log(`  Processing ${toProcess.length} this run (cap: ${MAX_NEW_PROBLEMS})\n`);
+  console.log(`  Processing ${toProcess.length} this run\n`);
 
   const systemPrompt = buildSystemPrompt();
   let enrichedCount = 0;
