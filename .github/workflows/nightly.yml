@@ -37,6 +37,7 @@ jobs:
           path: |
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
+            apps/client/public/data/news-history
           key: data-${{ github.run_id }}
           restore-keys: data-
 
@@ -49,12 +50,7 @@ jobs:
           fi
 
       - name: Fetch frontier research news
-        run: |
-          if [ -f public/data/news.json ]; then
-            echo "Using cached news.json"
-          else
-            bun run fetch-news
-          fi
+        run: bun run fetch-news
         env:
           PERIGON_API_KEY: ${{ secrets.PERIGON_API_KEY }}
 
@@ -70,6 +66,7 @@ jobs:
           path: |
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
+            apps/client/public/data/news-history
           key: data-${{ github.run_id }}
 
       - name: Build

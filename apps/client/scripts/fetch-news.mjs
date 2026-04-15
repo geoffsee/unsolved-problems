@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 /**
  * Pre-fetches frontier research news from Perigon at build time.
- * Output: public/data/news.json
+ * Outputs:
+ * - public/data/news.json
+ * - public/data/news-history/YYYY-MM-DD.json
+ * - public/data/news-history/index.json
  */
 
-import { writeFileSync, readFileSync, mkdirSync } from "fs";
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from "fs";
 
 function loadApiKey() {
   try {
@@ -41,6 +44,57 @@ function groupArticles(articles) {
   return groups;
 }
 
+function buildSnapshotDate(isoTimestamp) {
+  return isoTimestamp.slice(0, 10);
+}
+
+function loadArchiveIndex(path) {
+  if (!existsSync(path)) return { snapshots: [] };
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return { snapshots: [] };
+  }
+}
+
+function saveArchive(output) {
+  const snapshotDate = buildSnapshotDate(output.fetchedAt);
+  const historyDir = "public/data/news-history";
+  const snapshotPath = `${historyDir}/${snapshotDate}.json`;
+  const indexPath = `${historyDir}/index.json`;
+
+  mkdirSync(historyDir, { recursive: true });
+  writeFileSync(snapshotPath, JSON.stringify(output, null, 2));
+
+  const existing = loadArchiveIndex(indexPath);
+  const snapshots = Array.isArray(existing.snapshots) ? existing.snapshots : [];
+  const nextEntry = {
+    date: snapshotDate,
+    fetchedAt: output.fetchedAt,
+    storyCount: output.articles.length,
+    articleCount: output.totalArticles,
+    path: `news-history/${snapshotDate}.json`,
+  };
+
+  const filtered = snapshots.filter((entry) => entry.date !== snapshotDate);
+  filtered.push(nextEntry);
+  filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+  writeFileSync(
+    indexPath,
+    JSON.stringify(
+      {
+        updatedAt: output.fetchedAt,
+        snapshots: filtered,
+      },
+      null,
+      2,
+    ),
+  );
+
+  return { snapshotDate, snapshotPath, historyDir, snapshotCount: filtered.length };
+}
+
 async function main() {
   const apiKey = loadApiKey();
   if (!apiKey) {
@@ -75,16 +129,22 @@ async function main() {
   }));
 
   const grouped = groupArticles(articles);
+  const fetchedAt = new Date().toISOString();
 
   const output = {
-    fetchedAt: new Date().toISOString(),
+    fetchedAt,
+    totalArticles: articles.length,
     articles: grouped,
   };
 
   mkdirSync("public/data", { recursive: true });
   writeFileSync("public/data/news.json", JSON.stringify(output, null, 2));
+  const archive = saveArchive(output);
 
   console.log(`Done. ${grouped.length} stories (${articles.length} articles) written to public/data/news.json`);
+  console.log(
+    `Archived snapshot for ${archive.snapshotDate} at ${archive.snapshotPath} (${archive.snapshotCount} total snapshots)`,
+  );
 }
 
 main().catch((err) => {

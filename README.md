@@ -30,3 +30,5 @@ Run by CI nightly or on push to `master`:
 2. `fetch-news` — pulls frontier research articles via Perigon
 3. `enrich-data` — generates structured metadata per problem using Claude
 4. `vike build` — prerenders everything into a static site
+
+`fetch-news` writes the live feed to `apps/client/public/data/news.json` and also keeps daily snapshots in `apps/client/public/data/news-history/` with an `index.json` manifest.
