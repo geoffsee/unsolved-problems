@@ -10,6 +10,7 @@ import Header from "../../components/Header";
 import SearchBar from "../../components/SearchBar";
 import NewsFeed from "../../components/NewsFeed";
 import CaseFeed from "../../components/CaseFeed";
+import AgentLaunchCard from "../../components/AgentLaunchCard";
 import { Box } from "@chakra-ui/react";
 import { fetchQueueSnapshot, type LiveProblemState, type QueueSnapshot } from "../../lib/agentResearch";
 import { makeProblemId } from "../../lib/problemIds";
@@ -134,6 +135,7 @@ export default function Page() {
   return (
     <Box minH="100vh" bg="app.bg" color="app.text">
       <Header />
+      {!activeCategory && <AgentLaunchCard />}
 
       <SearchBar
         search={search}

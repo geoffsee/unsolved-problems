@@ -111,6 +111,37 @@ async function main() {
       text: string;
     };
 
+    const researcher = new Agent({
+      name: "Research Kickoff",
+      model: MODEL,
+      instructions: [
+        "You are starting work on a newly claimed unsolved problem.",
+        "Write one short checkpoint note that preserves a plausible first attack plan.",
+        "Keep it concrete and skeptical. Mention search directions, not fake conclusions.",
+        "Respond with plain text only.",
+      ].join("\n"),
+    });
+
+    const kickoff = await run(
+      researcher,
+      [
+        `Problem: ${problem.text}`,
+        `Field: ${problem.category} / ${problem.section}`,
+        "Write a brief first-pass research checkpoint for the shared log.",
+      ].join("\n"),
+    );
+
+    const kickoffNote = kickoff.finalOutput?.trim();
+    if (kickoffNote) {
+      await mcpServer.callTool("save_progress", {
+        problemId: chosenProblemId,
+        agentId: AGENT_ID,
+        kind: "checkpoint",
+        title: "Initial attack plan",
+        content: kickoffNote,
+      });
+    }
+
     console.log(
       JSON.stringify(
         {
@@ -123,6 +154,7 @@ async function main() {
           section: problem.section,
           problem: problem.text,
           reason: selection.finalOutput.reason,
+          kickoffNote: kickoffNote ?? null,
         },
         null,
         2,
