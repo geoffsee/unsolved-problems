@@ -2,7 +2,16 @@ import { useState } from "react";
 import { Badge, Box, Button, Flex, Heading, Text } from "@chakra-ui/react";
 
 const launcherScript = [
+  '# OpenAI cloud',
   'export OPENAI_API_KEY="your_api_key_here"',
+  '# or Ollama',
+  'export OPENAI_API_KEY="ollama"',
+  'export OPENAI_BASE_URL="http://127.0.0.1:11434/v1"',
+  'export OPENAI_MODEL="qwen2.5-coder:14b"',
+  '# or LM Studio',
+  'export OPENAI_API_KEY="lm-studio"',
+  'export OPENAI_BASE_URL="http://127.0.0.1:1234/v1"',
+  'export OPENAI_MODEL="local-model"',
   'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 ].join("\n");
 
@@ -48,6 +57,9 @@ export default function AgentLaunchCard() {
               <Badge bg="rgba(127, 255, 172, 0.12)" color="#92d6a3" textTransform="none">
                 MCP wired
               </Badge>
+              <Badge bg="rgba(122, 162, 247, 0.14)" color="#9ab8ff" textTransform="none">
+                OpenAI-compatible
+              </Badge>
             </Flex>
             <Heading
               as="h2"
@@ -62,7 +74,8 @@ export default function AgentLaunchCard() {
             </Heading>
             <Text color="app.text" fontSize="0.92rem" lineHeight="1.7" maxW="33rem">
               This shell bootstrap installs a minimal local runner, connects it to the deployed MCP server, claims an
-              available problem, and writes back an initial research note so partial work does not disappear.
+              available problem, and writes back an initial research note. Point it at OpenAI, Ollama, or LM Studio
+              through the same OpenAI-compatible env vars.
             </Text>
           </Box>
 
@@ -85,12 +98,72 @@ export default function AgentLaunchCard() {
             </Flex>
             <Box as="pre" m={0} px={4} py={4} overflowX="auto" fontFamily="mono" fontSize="0.76rem" lineHeight="1.8" color="#d9e0ee">
               <Text as="code" whiteSpace="pre" display="block">
+                <Text as="span" color="#565f89">
+                  # OpenAI cloud
+                </Text>
+                {"\n"}
                 <Text as="span" color="#7aa2f7">
                   ${" "}
                 </Text>
                 export OPENAI_API_KEY=
                 <Text as="span" color="#9ece6a">
                   "your_api_key_here"
+                </Text>
+                {"\n"}
+                <Text as="span" color="#565f89">
+                  # Ollama
+                </Text>
+                {"\n"}
+                <Text as="span" color="#7aa2f7">
+                  ${" "}
+                </Text>
+                export OPENAI_API_KEY=
+                <Text as="span" color="#9ece6a">
+                  "ollama"
+                </Text>
+                {"\n"}
+                <Text as="span" color="#7aa2f7">
+                  ${" "}
+                </Text>
+                export OPENAI_BASE_URL=
+                <Text as="span" color="#e0af68">
+                  "http://127.0.0.1:11434/v1"
+                </Text>
+                {"\n"}
+                <Text as="span" color="#7aa2f7">
+                  ${" "}
+                </Text>
+                export OPENAI_MODEL=
+                <Text as="span" color="#9ece6a">
+                  "qwen2.5-coder:14b"
+                </Text>
+                {"\n"}
+                <Text as="span" color="#565f89">
+                  # LM Studio
+                </Text>
+                {"\n"}
+                <Text as="span" color="#7aa2f7">
+                  ${" "}
+                </Text>
+                export OPENAI_API_KEY=
+                <Text as="span" color="#9ece6a">
+                  "lm-studio"
+                </Text>
+                {"\n"}
+                <Text as="span" color="#7aa2f7">
+                  ${" "}
+                </Text>
+                export OPENAI_BASE_URL=
+                <Text as="span" color="#e0af68">
+                  "http://127.0.0.1:1234/v1"
+                </Text>
+                {"\n"}
+                <Text as="span" color="#7aa2f7">
+                  ${" "}
+                </Text>
+                export OPENAI_MODEL=
+                <Text as="span" color="#9ece6a">
+                  "local-model"
                 </Text>
                 {"\n"}
                 <Text as="span" color="#7aa2f7">
@@ -105,7 +178,8 @@ export default function AgentLaunchCard() {
             </Box>
             <Flex align="center" justify="space-between" px={4} pb={4} gap={3} wrap="wrap">
               <Text color="app.textDim" fontSize="0.72rem">
-                Uses the OpenAI Agents SDK example under <Text as="span" fontFamily="mono">apps/example</Text>.
+                Uses the OpenAI Agents SDK example under <Text as="span" fontFamily="mono">apps/example</Text> with
+                OpenAI-compatible provider endpoints.
               </Text>
               <Button
                 size="sm"
