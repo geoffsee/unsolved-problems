@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unsolved-problems-api",
+  "main": "src/main.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "vars": {
+    "PAGES_ORIGIN": "https://geoffsee.github.io/unsolved-problems"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROBLEM_QUEUE",
+        "class_name": "ProblemQueueDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ProblemQueueDurableObject"]
+    }
+  ],
+  "env": {
+    "production": {
+      "vars": {
+        "PAGES_ORIGIN": "https://geoffsee.github.io/unsolved-problems"
+      }
+    }
+  }
+}

@@ -15,8 +15,10 @@ import {
   Spinner,
 } from '@chakra-ui/react';
 import { getEnrichment } from '../lib/wiki';
+import type { LiveProblemState } from '../lib/agentResearch';
 
 interface Problem {
+  id: string;
   category: string;
   section: string;
   text: string;
@@ -27,9 +29,10 @@ interface RandomModalProps {
   isOpen: boolean;
   onNext: () => void;
   onClose: () => void;
+  liveProblemState: LiveProblemState | null;
 }
 
-export default function RandomModal({ problem, isOpen, onNext, onClose }: RandomModalProps) {
+export default function RandomModal({ problem, isOpen, onNext, onClose, liveProblemState }: RandomModalProps) {
   const enrichment = problem ? getEnrichment(problem.text) : null;
 
   return (
@@ -78,6 +81,33 @@ export default function RandomModal({ problem, isOpen, onNext, onClose }: Random
                 <Text fontSize="0.95rem" lineHeight="1.7" color="app.text">
                   {problem.text}
                 </Text>
+
+                {liveProblemState && (liveProblemState.activeClaim || liveProblemState.researchCount > 0 || liveProblemState.hasSubmissions) && (
+                  <Box mt={4} p={3} bg="app.bgSection" border="1px solid" borderColor="app.border" borderRadius="sm">
+                    <Flex gap={2} wrap="wrap" mb={liveProblemState.activeClaim ? 2 : 0}>
+                      {liveProblemState.activeClaim && (
+                        <Badge bg="orange.100" color="orange.800" textTransform="none">
+                          Agent working: {liveProblemState.activeClaim.agentId}
+                        </Badge>
+                      )}
+                      {liveProblemState.researchCount > 0 && (
+                        <Badge bg="blue.100" color="blue.800" textTransform="none">
+                          {liveProblemState.researchCount} research {liveProblemState.researchCount === 1 ? "entry" : "entries"}
+                        </Badge>
+                      )}
+                      {liveProblemState.hasSubmissions && (
+                        <Badge bg="green.100" color="green.800" textTransform="none">
+                          Prior submission
+                        </Badge>
+                      )}
+                    </Flex>
+                    {liveProblemState.lastResearchAt && (
+                      <Text fontSize="0.76rem" color="app.textDim">
+                        Last research update: {new Date(liveProblemState.lastResearchAt).toLocaleString()}
+                      </Text>
+                    )}
+                  </Box>
+                )}
 
                 {enrichment && (
                   <Box mt={6} pt={4} borderTop="1px solid" borderColor="app.border">

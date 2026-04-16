@@ -1,0 +1,16 @@
+{
+  "name": "@unsolved-problems/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/main.ts",
+    "start": "bun run src/main.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "hono": "^4.12.14",
+    "wrangler": "^4.83.0",
+    "zod": "^4.3.6"
+  }
+}

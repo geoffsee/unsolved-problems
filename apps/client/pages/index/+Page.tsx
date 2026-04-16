@@ -11,6 +11,8 @@ import SearchBar from "../../components/SearchBar";
 import NewsFeed from "../../components/NewsFeed";
 import CaseFeed from "../../components/CaseFeed";
 import { Box } from "@chakra-ui/react";
+import { fetchQueueSnapshot, type LiveProblemState, type QueueSnapshot } from "../../lib/agentResearch";
+import { makeProblemId } from "../../lib/problemIds";
 
 export default function Page() {
   const { categories, enrichments, news: preloadedNews, cases: preloadedCases } = useData<{
@@ -39,6 +41,7 @@ export default function Page() {
   const [showRandom, setShowRandom] = useState(false);
   const [randomProblem, setRandomProblem] = useState<any | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [queueSnapshot, setQueueSnapshot] = useState<QueueSnapshot | null>(null);
 
   const sections = activeCategory && categories[activeCategory]
     ? categories[activeCategory]
@@ -62,7 +65,7 @@ export default function Page() {
       if (CATEGORIES[k]?.type) continue;
       for (const sec of secs) {
         for (const p of sec.problems) {
-          pool.push({ category: k, section: sec.heading, text: p });
+          pool.push({ id: makeProblemId(k, sec.heading, p), category: k, section: sec.heading, text: p });
         }
       }
     }
@@ -71,6 +74,16 @@ export default function Page() {
       setRandomProblem(pool[Math.floor(Math.random() * pool.length)]);
     }
   }, [categories]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchQueueSnapshot(controller.signal)
+      .then(setQueueSnapshot)
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, []);
 
   const filteredSections = sections
     .map((sec) => ({
@@ -85,6 +98,38 @@ export default function Page() {
 
   const activeType = activeCategory ? CATEGORIES[activeCategory]?.type : null;
   const activeCases = activeCategory && activeType === "cases" ? preloadedCases[activeCategory] : null;
+  const liveProblemStateById: Record<string, LiveProblemState> = {};
+
+  if (queueSnapshot) {
+    for (const [problemId, researchCount] of Object.entries(queueSnapshot.researchCountsByProblemId || {})) {
+      liveProblemStateById[problemId] = {
+        activeClaim: null,
+        researchCount,
+        lastResearchAt: queueSnapshot.lastResearchAtByProblemId?.[problemId] ?? null,
+        hasSubmissions: false,
+      };
+    }
+
+    for (const submission of queueSnapshot.submissions || []) {
+      const existing = liveProblemStateById[submission.problemId];
+      liveProblemStateById[submission.problemId] = {
+        activeClaim: existing?.activeClaim ?? null,
+        researchCount: existing?.researchCount ?? 0,
+        lastResearchAt: existing?.lastResearchAt ?? null,
+        hasSubmissions: true,
+      };
+    }
+
+    for (const claim of queueSnapshot.activeClaims || []) {
+      const existing = liveProblemStateById[claim.problemId];
+      liveProblemStateById[claim.problemId] = {
+        activeClaim: claim,
+        researchCount: existing?.researchCount ?? 0,
+        lastResearchAt: existing?.lastResearchAt ?? null,
+        hasSubmissions: existing?.hasSubmissions ?? false,
+      };
+    }
+  }
 
   return (
     <Box minH="100vh" bg="app.bg" color="app.text">
@@ -130,6 +175,7 @@ export default function Page() {
             error={null}
             search={search}
             onBack={goBack}
+            liveProblemStateById={liveProblemStateById}
           />
         )}
       </Box>
@@ -139,6 +185,7 @@ export default function Page() {
         isOpen={showRandom}
         onNext={pickRandom}
         onClose={() => setShowRandom(false)}
+        liveProblemState={randomProblem ? liveProblemStateById[randomProblem.id] ?? null : null}
       />
 
       <AboutModal

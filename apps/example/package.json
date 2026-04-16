@@ -1,0 +1,13 @@
+{
+  "name": "@unsolved-problems/example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.8.3",
+    "zod": "^4.3.6"
+  }
+}
