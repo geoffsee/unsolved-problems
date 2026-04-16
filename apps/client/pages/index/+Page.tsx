@@ -135,7 +135,6 @@ export default function Page() {
   return (
     <Box minH="100vh" bg="app.bg" color="app.text">
       <Header />
-      {!activeCategory && <AgentLaunchCard />}
 
       <SearchBar
         search={search}
@@ -148,11 +147,14 @@ export default function Page() {
 
       <Box pt={8}>
         {!activeCategory ? (
-          <CategoryGrid
-            categories={CATEGORIES}
-            loaded={loadedCategories}
-            onSelect={selectCategory}
-          />
+          <>
+            <CategoryGrid
+              categories={CATEGORIES}
+              loaded={loadedCategories}
+              onSelect={selectCategory}
+            />
+            <AgentLaunchCard />
+          </>
         ) : activeType === "news" ? (
           <NewsFeed
             news={preloadedNews}
