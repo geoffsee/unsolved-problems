@@ -34,16 +34,29 @@ function ProblemItemExpanded({ categoryKey, section, text, index, liveProblemSta
     if (!expanded || researchEntries || loadingResearch) return;
 
     const controller = new AbortController();
+    let cancelled = false;
     setLoadingResearch(true);
     setResearchError(null);
 
     fetchProblemResearch(problemId, controller.signal)
-      .then(setResearchEntries)
-      .catch(() => setResearchError("Research history is unavailable right now."))
-      .finally(() => setLoadingResearch(false));
+      .then((entries) => {
+        if (cancelled) return;
+        setResearchEntries(entries);
+      })
+      .catch((error) => {
+        if (cancelled || error instanceof DOMException && error.name === "AbortError") return;
+        setResearchError("Research history is unavailable right now.");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingResearch(false);
+      });
 
-    return () => controller.abort();
-  }, [expanded, loadingResearch, problemId, researchEntries]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [expanded, problemId, researchEntries]);
 
   return (
     <Box
