@@ -29,3 +29,5 @@ public/data/
 .playwright-mcp/
 .env.secrets
 package-lock.json
+/site-frontier.md
+/site-snapshot.md
