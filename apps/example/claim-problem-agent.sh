@@ -37,6 +37,10 @@ curl -fsSL "${base_url}/src/index.ts" -o "${tmp_dir}/src/index.ts"
 
 pick_mode="${UNSOLVED_PICK_MODE:-}"
 problem_id="${UNSOLVED_PROBLEM_ID:-}"
+user_goal="${UNSOLVED_USER_GOAL:-}"
+user_background="${UNSOLVED_USER_BACKGROUND:-}"
+user_constraints="${UNSOLVED_USER_CONSTRAINTS:-}"
+user_context="${UNSOLVED_USER_CONTEXT:-}"
 
 fetch_shortlist() {
   curl -fsSL -X POST "${MCP_URL}" \
@@ -47,6 +51,16 @@ fetch_shortlist() {
 }
 
 if [[ -z "${pick_mode}" && -t 0 ]]; then
+  echo "Guide the agent before it picks a problem."
+  printf "What kind of outcome are you hoping for? "
+  read -r user_goal
+  printf "What background or strengths should it lean on? "
+  read -r user_background
+  printf "Any constraints or preferences to respect? "
+  read -r user_constraints
+  printf "Any extra context, hunches, or references? "
+  read -r user_context
+  echo
   echo "How should the agent pick a problem?"
   echo "  1) Random available problem"
   echo "  2) Choose from a live shortlist"
@@ -124,5 +138,9 @@ echo "Bootstrapping agent in ${tmp_dir}..."
   UNSOLVED_MCP_URL="${MCP_URL}" \
   UNSOLVED_PICK_MODE="${pick_mode}" \
   UNSOLVED_PROBLEM_ID="${problem_id}" \
+  UNSOLVED_USER_GOAL="${user_goal}" \
+  UNSOLVED_USER_BACKGROUND="${user_background}" \
+  UNSOLVED_USER_CONSTRAINTS="${user_constraints}" \
+  UNSOLVED_USER_CONTEXT="${user_context}" \
   bun run start
 )

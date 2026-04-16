@@ -7,6 +7,10 @@ const MODEL = process.env.OPENAI_MODEL || "gpt-4.1";
 const LEASE_MINUTES = 60;
 const PICK_MODE = process.env.UNSOLVED_PICK_MODE || "agent";
 const SPECIFIC_PROBLEM_ID = process.env.UNSOLVED_PROBLEM_ID || null;
+const USER_GOAL = process.env.UNSOLVED_USER_GOAL || "";
+const USER_BACKGROUND = process.env.UNSOLVED_USER_BACKGROUND || "";
+const USER_CONSTRAINTS = process.env.UNSOLVED_USER_CONSTRAINTS || "";
+const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
 
 const SelectionSchema = z.object({
   problemId: z.string(),
@@ -51,6 +55,17 @@ type ProblemResource = {
   researchEntries?: ResearchEntry[];
 };
 
+function buildUserBrief() {
+  const parts = [
+    USER_GOAL ? `Desired outcome: ${USER_GOAL}` : null,
+    USER_BACKGROUND ? `Background or strengths: ${USER_BACKGROUND}` : null,
+    USER_CONSTRAINTS ? `Constraints or preferences: ${USER_CONSTRAINTS}` : null,
+    USER_CONTEXT ? `Extra context: ${USER_CONTEXT}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join("\n");
+}
+
 async function listAvailableProblemIds(mcpServer: MCPServerStreamableHttp, limit: number) {
   const listResult = await mcpServer.callTool("list_problems", { limit, status: "available" });
   const candidatesText = getText(listResult);
@@ -59,6 +74,8 @@ async function listAvailableProblemIds(mcpServer: MCPServerStreamableHttp, limit
 }
 
 async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
+  const userBrief = buildUserBrief();
+
   if (PICK_MODE === "specific") {
     if (!SPECIFIC_PROBLEM_ID) {
       throw new Error("UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.");
@@ -90,6 +107,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
     outputType: SelectionSchema,
     instructions: [
       "Choose one unsolved problem to work on from the supplied candidates.",
+      "Use the user's brief to bias your selection when it is relevant.",
       "Prefer a problem with a concise statement and a clear scientific field.",
       "Return exactly one candidate problemId and a short reason.",
     ].join("\n"),
@@ -102,9 +120,14 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
       "",
       candidatesText,
       "",
+      userBrief ? `User brief:\n${userBrief}\n` : "",
       `Valid problem IDs: ${candidateIds.join(", ")}`,
     ].join("\n"),
   );
+
+  if (!selection.finalOutput) {
+    throw new Error("The selector agent did not return a problem choice.");
+  }
 
   const chosenProblemId = selection.finalOutput.problemId;
   if (!candidateIds.includes(chosenProblemId)) {
@@ -131,6 +154,7 @@ async function main() {
   await mcpServer.connect();
 
   try {
+    const userBrief = buildUserBrief();
     const { chosenProblemId, reason } = await chooseProblemId(mcpServer);
 
     await mcpServer.callTool("pick_problem", {
@@ -145,7 +169,7 @@ async function main() {
       throw new Error("Queue resource did not return JSON text.");
     }
 
-    const queue = JSON.parse(queueJson) as {
+    const queue = JSON.parse(String(queueJson)) as {
       activeClaims: ProblemClaim[];
     };
 
@@ -163,7 +187,7 @@ async function main() {
       throw new Error(`Problem resource for ${chosenProblemId} did not return JSON text.`);
     }
 
-    const problem = JSON.parse(problemJson) as ProblemResource;
+    const problem = JSON.parse(String(problemJson)) as ProblemResource;
     const priorResearch = (problem.researchEntries ?? [])
       .slice(-3)
       .map((entry, index) => `${index + 1}. [${entry.kind}] ${entry.title ?? "Untitled"} by ${entry.agentId}: ${entry.content}`)
@@ -174,6 +198,7 @@ async function main() {
       model: MODEL,
       instructions: [
         "You are starting work on a newly claimed unsolved problem.",
+        "Follow the user's brief where it helps produce a better first pass.",
         "Read any prior shared research before proposing the next step.",
         "Write one short checkpoint note that preserves a plausible first attack plan.",
         "Keep it concrete and skeptical. Mention search directions, not fake conclusions.",
@@ -186,12 +211,13 @@ async function main() {
       [
         `Problem: ${problem.text}`,
         `Field: ${problem.category} / ${problem.section}`,
+        userBrief ? `User brief:\n${userBrief}` : "User brief: none supplied.",
         priorResearch ? `Recent shared research:\n${priorResearch}` : "Recent shared research: none yet.",
         "Write a brief first-pass research checkpoint for the shared log.",
       ].join("\n"),
     );
 
-    const kickoffNote = kickoff.finalOutput?.trim();
+    const kickoffNote = typeof kickoff.finalOutput === "string" ? kickoff.finalOutput.trim() : "";
     if (kickoffNote) {
       await mcpServer.callTool("save_progress", {
         problemId: chosenProblemId,
@@ -215,6 +241,7 @@ async function main() {
           problem: problem.text,
           reason,
           pickMode: PICK_MODE,
+          userGoal: USER_GOAL || null,
           priorResearchCount: problem.researchEntries?.length ?? 0,
           kickoffNote: kickoffNote ?? null,
         },

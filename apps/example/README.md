@@ -43,6 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/a
 
 If you run the bootstrap in an interactive terminal, it will prompt you to:
 
-1. pick a random available problem
-2. choose from a live shortlist
-3. enter a specific problem ID
+1. describe the outcome, background, constraints, and context you want the agent to use
+2. pick a random available problem
+3. choose from a live shortlist
+4. enter a specific problem ID
