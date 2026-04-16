@@ -9,8 +9,8 @@ export default function Header() {
                 Catalog of the Unsolved
             </Heading>
             <Text color="app.textDim" fontSize="0.88rem" mt={2} pb={5} lineHeight="1.5" letterSpacing="0.2px">
-                A curated index of open questions across scientific disciplines,
-                sourced from Wikipedia&rsquo;s peer-reviewed problem lists. Updates daily at midnight.
+                A curated index of open questions across scientific disciplines, with frontier research tracking and
+                official FBI ViCAP case listings. Updates daily at midnight.
             </Text>
         </Box>
     );

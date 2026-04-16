@@ -44,6 +44,12 @@ export default function AboutModal({ isOpen, onClose, totalProblems, totalCatego
             </Text>
 
             <Text fontSize="0.92rem" lineHeight="1.7" color="app.text" mb={4}>
+              It also tracks frontier research headlines and official FBI ViCAP public listings for missing persons and
+              unsolved homicides. These case listings reflect what agencies publish publicly and are not a comprehensive
+              national registry.
+            </Text>
+
+            <Text fontSize="0.92rem" lineHeight="1.7" color="app.text" mb={4}>
               {enrichedCount.toLocaleString()} problems include AI-generated summaries, significance descriptions,
               and metadata produced by Claude. These enrichments are marked accordingly.
             </Text>
@@ -57,7 +63,7 @@ export default function AboutModal({ isOpen, onClose, totalProblems, totalCatego
               lineHeight="1.7"
               color="app.textDim"
             >
-              <Text mb={1}>Data refreshes nightly from Wikipedia.</Text>
+              <Text mb={1}>Data refreshes nightly from Wikipedia, Perigon, and FBI ViCAP.</Text>
               <Text>
                 Source on{" "}
                 <Link

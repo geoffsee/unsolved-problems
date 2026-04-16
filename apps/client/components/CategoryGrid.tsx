@@ -60,6 +60,10 @@ export default function CategoryGrid({ categories, loaded, onSelect }: CategoryG
               <Text fontSize="0.76rem" color="app.textDim" fontWeight="normal">
                 {categories[key].type === "news"
                   ? "Latest breakthroughs"
+                  : categories[key].type === "cases"
+                  ? loaded[key]
+                    ? `${loaded[key]} public listings`
+                    : "Official public listings"
                   : loaded[key]
                   ? `${loaded[key]} open problems`
                   : "Select to browse"}

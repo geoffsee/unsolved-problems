@@ -79,4 +79,14 @@ export const CATEGORIES: Record<string, Category> = {
     emoji: "\u{1F52C}",
     color: "#8a9bb5",
   },
+  "missing persons": {
+    type: "cases",
+    emoji: "\u{1F9ED}",
+    color: "#6f8f72",
+  },
+  "unsolved homicides": {
+    type: "cases",
+    emoji: "\u{1F56F}\uFE0F",
+    color: "#8c6d66",
+  },
 };

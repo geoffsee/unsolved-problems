@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useData } from "vike-react/useData";
-import { CATEGORIES, setEnrichments, type Section, type Category } from "../../lib/wiki";
+import { CATEGORIES, setEnrichments, type Section } from "../../lib/wiki";
+import type { CaseCategoryData } from "../../lib/cases";
 import CategoryGrid from "../../components/CategoryGrid";
 import ProblemsView from "../../components/ProblemsView";
 import RandomModal from "../../components/RandomModal";
@@ -8,13 +9,15 @@ import AboutModal from "../../components/AboutModal";
 import Header from "../../components/Header";
 import SearchBar from "../../components/SearchBar";
 import NewsFeed from "../../components/NewsFeed";
+import CaseFeed from "../../components/CaseFeed";
 import { Box } from "@chakra-ui/react";
 
 export default function Page() {
-  const { categories, enrichments, news: preloadedNews } = useData<{
+  const { categories, enrichments, news: preloadedNews, cases: preloadedCases } = useData<{
     categories: Record<string, Section[]>;
     enrichments: Record<string, any>;
     news: any[];
+    cases: Record<string, CaseCategoryData>;
   }>();
 
   // Initialize enrichments from prerendered data
@@ -26,6 +29,9 @@ export default function Page() {
   const loadedCategories: Record<string, number> = {};
   for (const [key, sections] of Object.entries(categories)) {
     loadedCategories[key] = sections.reduce((n, s) => n + s.problems.length, 0);
+  }
+  for (const [key, feed] of Object.entries(preloadedCases)) {
+    loadedCategories[key] = feed.items.length;
   }
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -53,7 +59,7 @@ export default function Page() {
 
     const pool: any[] = [];
     for (const [k, secs] of Object.entries(categories)) {
-      if (CATEGORIES[k]?.type === "news") continue;
+      if (CATEGORIES[k]?.type) continue;
       for (const sec of secs) {
         for (const p of sec.problems) {
           pool.push({ category: k, section: sec.heading, text: p });
@@ -77,7 +83,8 @@ export default function Page() {
 
   const totalProblems = sections.reduce((n, s) => n + s.problems.length, 0);
 
-  const isNews = activeCategory && CATEGORIES[activeCategory]?.type === "news";
+  const activeType = activeCategory ? CATEGORIES[activeCategory]?.type : null;
+  const activeCases = activeCategory && activeType === "cases" ? preloadedCases[activeCategory] : null;
 
   return (
     <Box minH="100vh" bg="app.bg" color="app.text">
@@ -88,7 +95,7 @@ export default function Page() {
         onSearch={setSearch}
         onRandom={pickRandom}
         onAbout={() => setShowAbout(true)}
-        showSearch={!!activeCategory && !isNews}
+        showSearch={!!activeCategory}
         placeholder={activeCategory ? `Search in ${activeCategory}...` : "Filter..."}
       />
 
@@ -99,11 +106,17 @@ export default function Page() {
             loaded={loadedCategories}
             onSelect={selectCategory}
           />
-        ) : isNews ? (
+        ) : activeType === "news" ? (
           <NewsFeed
             news={preloadedNews}
             loading={false}
             error={null}
+            search={search}
+            onBack={goBack}
+          />
+        ) : activeType === "cases" && activeCases ? (
+          <CaseFeed
+            feed={activeCases}
             search={search}
             onBack={goBack}
           />

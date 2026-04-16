@@ -5,10 +5,12 @@ export function data() {
   const problemsPath = resolve("public/data/problems.json");
   const enrichmentsPath = resolve("public/data/enrichments.json");
   const newsPath = resolve("public/data/news.json");
+  const casesPath = resolve("public/data/cases.json");
 
   let categories: Record<string, any[]> = {};
   let enrichments: Record<string, any> = {};
   let news: any[] = [];
+  let cases: Record<string, any> = {};
 
   if (existsSync(problemsPath)) {
     const raw = JSON.parse(readFileSync(problemsPath, "utf-8"));
@@ -25,5 +27,10 @@ export function data() {
     news = raw.articles || [];
   }
 
-  return { categories, enrichments, news };
+  if (existsSync(casesPath)) {
+    const raw = JSON.parse(readFileSync(casesPath, "utf-8"));
+    cases = raw.categories || {};
+  }
+
+  return { categories, enrichments, news, cases };
 }
