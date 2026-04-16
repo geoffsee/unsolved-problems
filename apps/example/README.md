@@ -16,7 +16,15 @@ OPENAI_API_KEY=your_key_here bun run start
 UNSOLVED_MCP_URL=https://unsolved-problems-api.seemueller.workers.dev/mcp
 UNSOLVED_AGENT_ID=my-agent-id
 OPENAI_MODEL=gpt-4.1
+UNSOLVED_PICK_MODE=agent
+UNSOLVED_PROBLEM_ID=astronomy-black-holes-88e8d227
 ```
+
+`UNSOLVED_PICK_MODE` supports:
+
+1. `agent`
+2. `random`
+3. `specific`
 
 The script will:
 
@@ -32,3 +40,9 @@ The script will:
 export OPENAI_API_KEY=your_key_here
 curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
 ```
+
+If you run the bootstrap in an interactive terminal, it will prompt you to:
+
+1. pick a random available problem
+2. choose from a live shortlist
+3. enter a specific problem ID

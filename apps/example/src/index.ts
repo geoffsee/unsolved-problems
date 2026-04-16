@@ -5,6 +5,8 @@ const MCP_URL = process.env.UNSOLVED_MCP_URL || "https://unsolved-problems-api.s
 const AGENT_ID = process.env.UNSOLVED_AGENT_ID || `openai-agents-sdk-${Date.now()}`;
 const MODEL = process.env.OPENAI_MODEL || "gpt-4.1";
 const LEASE_MINUTES = 60;
+const PICK_MODE = process.env.UNSOLVED_PICK_MODE || "agent";
+const SPECIFIC_PROBLEM_ID = process.env.UNSOLVED_PROBLEM_ID || null;
 
 const SelectionSchema = z.object({
   problemId: z.string(),
@@ -25,6 +27,96 @@ function parseCandidateIds(text: string) {
     .filter((value): value is string => Boolean(value));
 }
 
+type ProblemClaim = {
+  claimId: string;
+  problemId: string;
+  agentId: string;
+  status: string;
+};
+
+type ResearchEntry = {
+  entryId: string;
+  agentId: string;
+  kind: string;
+  title: string | null;
+  content: string;
+  createdAt: string;
+};
+
+type ProblemResource = {
+  id: string;
+  category: string;
+  section: string;
+  text: string;
+  researchEntries?: ResearchEntry[];
+};
+
+async function listAvailableProblemIds(mcpServer: MCPServerStreamableHttp, limit: number) {
+  const listResult = await mcpServer.callTool("list_problems", { limit, status: "available" });
+  const candidatesText = getText(listResult);
+  const candidateIds = parseCandidateIds(candidatesText);
+  return { candidatesText, candidateIds };
+}
+
+async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
+  if (PICK_MODE === "specific") {
+    if (!SPECIFIC_PROBLEM_ID) {
+      throw new Error("UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.");
+    }
+
+    return {
+      chosenProblemId: SPECIFIC_PROBLEM_ID,
+      reason: "Selected explicitly by the launcher.",
+    };
+  }
+
+  const { candidatesText, candidateIds } = await listAvailableProblemIds(mcpServer, PICK_MODE === "random" ? 25 : 5);
+
+  if (candidateIds.length === 0) {
+    throw new Error("The MCP server did not return any available problem IDs.");
+  }
+
+  if (PICK_MODE === "random") {
+    const chosenProblemId = candidateIds[Math.floor(Math.random() * candidateIds.length)];
+    return {
+      chosenProblemId,
+      reason: "Selected randomly from the live available shortlist.",
+    };
+  }
+
+  const selector = new Agent({
+    name: "Problem Selector",
+    model: MODEL,
+    outputType: SelectionSchema,
+    instructions: [
+      "Choose one unsolved problem to work on from the supplied candidates.",
+      "Prefer a problem with a concise statement and a clear scientific field.",
+      "Return exactly one candidate problemId and a short reason.",
+    ].join("\n"),
+  });
+
+  const selection = await run(
+    selector,
+    [
+      "Select one of these available problem candidates.",
+      "",
+      candidatesText,
+      "",
+      `Valid problem IDs: ${candidateIds.join(", ")}`,
+    ].join("\n"),
+  );
+
+  const chosenProblemId = selection.finalOutput.problemId;
+  if (!candidateIds.includes(chosenProblemId)) {
+    throw new Error(`Agent selected an invalid problemId: ${chosenProblemId}`);
+  }
+
+  return {
+    chosenProblemId,
+    reason: selection.finalOutput.reason,
+  };
+}
+
 async function main() {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is required.");
@@ -39,40 +131,7 @@ async function main() {
   await mcpServer.connect();
 
   try {
-    const listResult = await mcpServer.callTool("list_problems", { limit: 5, status: "available" });
-    const candidatesText = getText(listResult);
-    const candidateIds = parseCandidateIds(candidatesText);
-
-    if (candidateIds.length === 0) {
-      throw new Error("The MCP server did not return any available problem IDs.");
-    }
-
-    const selector = new Agent({
-      name: "Problem Selector",
-      model: MODEL,
-      outputType: SelectionSchema,
-      instructions: [
-        "Choose one unsolved problem to work on from the supplied candidates.",
-        "Prefer a problem with a concise statement and a clear scientific field.",
-        "Return exactly one candidate problemId and a short reason.",
-      ].join("\n"),
-    });
-
-    const selection = await run(
-      selector,
-      [
-        "Select one of these available problem candidates.",
-        "",
-        candidatesText,
-        "",
-        `Valid problem IDs: ${candidateIds.join(", ")}`,
-      ].join("\n"),
-    );
-
-    const chosenProblemId = selection.finalOutput.problemId;
-    if (!candidateIds.includes(chosenProblemId)) {
-      throw new Error(`Agent selected an invalid problemId: ${chosenProblemId}`);
-    }
+    const { chosenProblemId, reason } = await chooseProblemId(mcpServer);
 
     await mcpServer.callTool("pick_problem", {
       agentId: AGENT_ID,
@@ -104,18 +163,18 @@ async function main() {
       throw new Error(`Problem resource for ${chosenProblemId} did not return JSON text.`);
     }
 
-    const problem = JSON.parse(problemJson) as {
-      id: string;
-      category: string;
-      section: string;
-      text: string;
-    };
+    const problem = JSON.parse(problemJson) as ProblemResource;
+    const priorResearch = (problem.researchEntries ?? [])
+      .slice(-3)
+      .map((entry, index) => `${index + 1}. [${entry.kind}] ${entry.title ?? "Untitled"} by ${entry.agentId}: ${entry.content}`)
+      .join("\n");
 
     const researcher = new Agent({
       name: "Research Kickoff",
       model: MODEL,
       instructions: [
         "You are starting work on a newly claimed unsolved problem.",
+        "Read any prior shared research before proposing the next step.",
         "Write one short checkpoint note that preserves a plausible first attack plan.",
         "Keep it concrete and skeptical. Mention search directions, not fake conclusions.",
         "Respond with plain text only.",
@@ -127,6 +186,7 @@ async function main() {
       [
         `Problem: ${problem.text}`,
         `Field: ${problem.category} / ${problem.section}`,
+        priorResearch ? `Recent shared research:\n${priorResearch}` : "Recent shared research: none yet.",
         "Write a brief first-pass research checkpoint for the shared log.",
       ].join("\n"),
     );
@@ -153,7 +213,9 @@ async function main() {
           category: problem.category,
           section: problem.section,
           problem: problem.text,
-          reason: selection.finalOutput.reason,
+          reason,
+          pickMode: PICK_MODE,
+          priorResearchCount: problem.researchEntries?.length ?? 0,
           kickoffNote: kickoffNote ?? null,
         },
         null,
@@ -164,12 +226,5 @@ async function main() {
     await mcpServer.close();
   }
 }
-
-type ProblemClaim = {
-  claimId: string;
-  problemId: string;
-  agentId: string;
-  status: string;
-};
 
 await main();

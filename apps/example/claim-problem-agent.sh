@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+MCP_URL="${UNSOLVED_MCP_URL:-https://unsolved-problems-api.seemueller.workers.dev/mcp}"
+
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required." >&2
   exit 1
@@ -33,9 +35,94 @@ mkdir -p "${tmp_dir}/src"
 curl -fsSL "${base_url}/package.json" -o "${tmp_dir}/package.json"
 curl -fsSL "${base_url}/src/index.ts" -o "${tmp_dir}/src/index.ts"
 
+pick_mode="${UNSOLVED_PICK_MODE:-}"
+problem_id="${UNSOLVED_PROBLEM_ID:-}"
+
+fetch_shortlist() {
+  curl -fsSL -X POST "${MCP_URL}" \
+    -H "content-type: application/json" \
+    -H "accept: application/json, text/event-stream" \
+    -H "mcp-protocol-version: 2025-03-26" \
+    --data '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_problems","arguments":{"limit":8,"status":"available"}}}'
+}
+
+if [[ -z "${pick_mode}" && -t 0 ]]; then
+  echo "How should the agent pick a problem?"
+  echo "  1) Random available problem"
+  echo "  2) Choose from a live shortlist"
+  echo "  3) Enter a problem ID manually"
+  printf "Select [1-3]: "
+  read -r menu_choice
+
+  case "${menu_choice}" in
+    1|"")
+      pick_mode="random"
+      ;;
+    2)
+      pick_mode="specific"
+      shortlist_json="$(fetch_shortlist)"
+      mapfile -t shortlist < <(
+        printf '%s' "${shortlist_json}" | bun -e '
+          const chunks = [];
+          for await (const chunk of Bun.stdin.stream()) chunks.push(chunk);
+          const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          const items = payload?.result?.structuredContent?.items ?? [];
+          for (const item of items) {
+            const text = String(item.text ?? "").replace(/\s+/g, " ").trim();
+            console.log([item.id, `${item.category} / ${item.section}`, text].join("\t"));
+          }
+        '
+      )
+
+      if [[ "${#shortlist[@]}" -eq 0 ]]; then
+        echo "No available problems were returned by the MCP server." >&2
+        exit 1
+      fi
+
+      echo
+      echo "Available shortlist:"
+      for i in "${!shortlist[@]}"; do
+        IFS=$'\t' read -r item_id item_scope item_text <<<"${shortlist[$i]}"
+        printf "  %d) %s\n" "$((i + 1))" "${item_id}"
+        printf "     %s\n" "${item_scope}"
+        printf "     %s\n" "${item_text:0:140}"
+      done
+      printf "Pick a problem [1-%d]: " "${#shortlist[@]}"
+      read -r shortlist_choice
+
+      if ! [[ "${shortlist_choice}" =~ ^[0-9]+$ ]] || (( shortlist_choice < 1 || shortlist_choice > ${#shortlist[@]} )); then
+        echo "Invalid selection." >&2
+        exit 1
+      fi
+
+      IFS=$'\t' read -r problem_id _ <<<"${shortlist[$((shortlist_choice - 1))]}"
+      ;;
+    3)
+      pick_mode="specific"
+      printf "Enter a problem ID: "
+      read -r problem_id
+      if [[ -z "${problem_id}" ]]; then
+        echo "A problem ID is required." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Invalid selection." >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ -z "${pick_mode}" ]]; then
+  pick_mode="agent"
+fi
+
 echo "Bootstrapping agent in ${tmp_dir}..."
 (
   cd "${tmp_dir}"
   bun install --silent
+  UNSOLVED_MCP_URL="${MCP_URL}" \
+  UNSOLVED_PICK_MODE="${pick_mode}" \
+  UNSOLVED_PROBLEM_ID="${problem_id}" \
   bun run start
 )
