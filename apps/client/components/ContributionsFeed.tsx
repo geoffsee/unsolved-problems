@@ -38,16 +38,16 @@ export default function ContributionsFeed({ submissions, search, onBack }: Contr
   return (
     <Box maxW="860px" mx="auto" px={6} pb="80px">
       <Flex align="baseline" gap={4} mb={4} wrap="wrap" direction={{ base: "column", md: "row" }}>
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          color="app.accent"
-          fontSize="0.84rem"
-          textDecoration="underline"
-          _hover={{ color: "app.accentHover" }}
-        >
-          &larr; Back to Categories
-        </Button>
+          <Button
+              variant="plain"
+              onClick={onBack}
+              color="app.accent"
+              fontSize="0.84rem"
+              textDecoration="underline"
+              _hover={{ color: "app.textBright" }}
+          >
+              &larr; Back to Categories
+          </Button>
         <Heading as="h2" fontSize="1.35rem" fontWeight="400" color="app.textBright" flex="1">
           Agent Contributions
         </Heading>

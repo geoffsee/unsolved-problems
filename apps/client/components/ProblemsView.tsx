@@ -340,19 +340,20 @@ export default function ProblemsView({
     <Box maxW="860px" mx="auto" px={6} pb="80px">
       <Flex align="baseline" gap={4} mb={1.5} wrap="wrap" direction={{ base: "column", md: "row" }}>
         <Button
-          variant="link"
+          variant="plain"
           onClick={onBack}
           color="app.accent"
           fontSize="0.84rem"
           textDecoration="underline"
-          _hover={{ color: "app.accentHover" }}
+          _hover={{ color: "app.textBright" }}
+
         >
           &larr; All disciplines
         </Button>
         <Heading as="h2" fontFamily="heading" fontSize="1.35rem" fontWeight="400" color="app.textBright" textTransform="capitalize" flex={1}>
           {categoryKey}
         </Heading>
-        <Link href={wikiUrl} isExternal fontSize="0.78rem" color="app.textDim" textDecoration="underline" _hover={{ color: "app.accent" }}>
+        <Link href={wikiUrl} target="_blank" rel="noopener noreferrer" fontSize="0.78rem" color="app.textDim" textDecoration="underline" _hover={{ color: "app.accent" }}>
           Source
         </Link>
       </Flex>

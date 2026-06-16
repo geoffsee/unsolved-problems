@@ -16,7 +16,7 @@ export default function CategoryGrid({ categories, loaded, onSelect }: CategoryG
     <Box maxW="860px" mx="auto" px={6} pb={16}>
       <SimpleGrid
         columns={{ base: 1, md: 2, lg: 3 }}
-        spacing={0}
+        gap={0}
         border="1px solid"
         borderColor="app.border"
         borderRadius="md"

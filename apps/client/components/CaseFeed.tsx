@@ -45,12 +45,12 @@ export default function CaseFeed({ feed, search, onBack }: CaseFeedProps) {
     <Box maxW="860px" mx="auto" px={6} pb="80px">
       <Flex align="baseline" gap={4} mb={4} wrap="wrap" direction={{ base: "column", md: "row" }}>
         <Button
-          variant="link"
-          onClick={onBack}
-          color="app.accent"
-          fontSize="0.84rem"
-          textDecoration="underline"
-          _hover={{ color: "app.accentHover" }}
+            variant="plain"
+            onClick={onBack}
+            color="app.accent"
+            fontSize="0.84rem"
+            textDecoration="underline"
+            _hover={{ color: "app.textBright" }}
         >
           &larr; Back to Categories
         </Button>

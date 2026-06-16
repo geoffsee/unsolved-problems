@@ -53,6 +53,8 @@ export default function AgentLaunchCard() {
         position="relative"
         overflow="hidden"
         border="1px solid"
+        borderRadius="md"
+        bottom="1rem"
         borderColor="app.borderLight"
         bg="linear-gradient(180deg, rgba(30,30,38,0.96) 0%, rgba(18,18,24,0.98) 100%)"
         boxShadow="0 24px 60px rgba(0, 0, 0, 0.3)"

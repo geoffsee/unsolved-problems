@@ -8,6 +8,7 @@ import {
   DialogBody,
   DialogCloseTrigger,
   Button,
+  type ButtonProps,
   Text,
   Box,
   Flex,
@@ -32,6 +33,25 @@ interface RandomModalProps {
   liveProblemState: LiveProblemState | null;
 }
 
+const commonButtonStyles: ButtonProps = {
+  variant: 'outline',
+  bg: 'transparent',
+  color: 'app.text',
+  border: '1px solid',
+  borderColor: 'app.border',
+  borderRadius: 'sm',
+  px: 4.5,
+  py: 2,
+  fontSize: '0.85rem',
+  fontWeight: 'normal',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  _hover: { borderColor: 'app.accent', color: 'app.accent', bg: 'transparent' },
+  w: { base: '100%', md: 'auto' },
+  h: 'auto',
+};
+
+
 export default function RandomModal({ problem, isOpen, onNext, onClose, liveProblemState }: RandomModalProps) {
   const enrichment = problem ? getEnrichment(problem.text) : null;
 
@@ -39,7 +59,7 @@ export default function RandomModal({ problem, isOpen, onNext, onClose, liveProb
     <DialogRoot open={isOpen} onOpenChange={(e) => !e.open && onClose()} placement="center" size="xl">
       <DialogBackdrop bg="blackAlpha.700" backdropFilter="blur(2px)" />
       <DialogPositioner>
-        <DialogContent bg="app.bgCard" border="1px solid" borderColor="app.border" borderRadius="md" p={4}>
+        <DialogContent bg="app.bgCard" border="1px solid" borderColor="app.border" borderRadius="md" p={4} w="30rem" overflowY="auto">
           <DialogCloseTrigger color="app.textDim" />
           <DialogBody pt={6}>
             {!problem ? (
@@ -173,6 +193,7 @@ export default function RandomModal({ problem, isOpen, onNext, onClose, liveProb
               _hover={{ bg: "rgba(138, 155, 181, 0.08)", borderColor: "app.accentHover", color: "app.accentHover" }}
               onClick={onNext}
               fontSize="0.84rem"
+              {...(problem ? commonButtonStyles : { isDisabled: true })}
             >
               Next
             </Button>

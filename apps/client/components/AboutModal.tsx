@@ -68,7 +68,8 @@ export default function AboutModal({ isOpen, onClose, totalProblems, totalCatego
                 Source on{" "}
                 <Link
                   href="https://github.com/geoffsee/unsolved-problems"
-                  isExternal
+                  target="_blank"
+                  rel="noopener noreferrer"
                   color="app.accent"
                   textDecoration="underline"
                   _hover={{ color: "app.accentHover" }}

@@ -14,7 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 const PROBLEMS_PATH = resolve("public/data/problems.json");
 const ENRICHMENTS_PATH = resolve("public/data/enrichments.json");
 
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-opus-4-8";
 const BATCH_SIZE = 20;
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 2000;
