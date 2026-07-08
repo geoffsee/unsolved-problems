@@ -225,7 +225,7 @@ async function main() {
       await mcpServer.callTool("save_progress", {
         problemId: chosenProblemId,
         agentId: AGENT_ID,
-        kind: "checkpoint",
+        kind: "note",
         title: "Initial attack plan",
         content: kickoffNote,
       });
