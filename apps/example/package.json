@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "start:openai": "bun run src/index.ts",
+    "start:anthropic": "bun run src/anthropic.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.141",
     "@openai/agents": "^0.8.3",
     "zod": "^4.3.6"
   }

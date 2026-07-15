@@ -2,16 +2,33 @@
 set -euo pipefail
 
 MCP_URL="${UNSOLVED_MCP_URL:-https://unsolved-problems-api.seemueller.workers.dev/mcp}"
+PROVIDER="${UNSOLVED_PROVIDER:-openai}"
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required." >&2
   exit 1
 fi
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "OPENAI_API_KEY must be set before running this script." >&2
-  exit 1
-fi
+case "${PROVIDER}" in
+  openai)
+    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+      echo "OPENAI_API_KEY must be set before running this script." >&2
+      exit 1
+    fi
+    start_script="start:openai"
+    ;;
+  anthropic)
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+      echo "ANTHROPIC_API_KEY must be set before running this script." >&2
+      exit 1
+    fi
+    start_script="start:anthropic"
+    ;;
+  *)
+    echo "UNSOLVED_PROVIDER must be openai or anthropic (got: ${PROVIDER})." >&2
+    exit 1
+    ;;
+esac
 
 if ! command -v bun >/dev/null 2>&1; then
   install_dir="${HOME}/.bun"
@@ -34,6 +51,7 @@ mkdir -p "${tmp_dir}/src"
 
 curl -fsSL "${base_url}/package.json" -o "${tmp_dir}/package.json"
 curl -fsSL "${base_url}/src/index.ts" -o "${tmp_dir}/src/index.ts"
+curl -fsSL "${base_url}/src/anthropic.ts" -o "${tmp_dir}/src/anthropic.ts"
 
 pick_mode="${UNSOLVED_PICK_MODE:-}"
 problem_id="${UNSOLVED_PROBLEM_ID:-}"
@@ -142,5 +160,5 @@ echo "Bootstrapping agent in ${tmp_dir}..."
   UNSOLVED_USER_BACKGROUND="${user_background}" \
   UNSOLVED_USER_CONSTRAINTS="${user_constraints}" \
   UNSOLVED_USER_CONTEXT="${user_context}" \
-  bun run start
+  bun run "${start_script}"
 )

@@ -1,13 +1,21 @@
-# OpenAI Agents SDK Example
+# Agent Contribution Examples
 
-This example uses the OpenAI Agents SDK to connect to the deployed MCP server and claim one unsolved problem to work on.
+Claim one unsolved problem through the deployed MCP server and save an initial research checkpoint.
 
-## Run
+## OpenAI Agents SDK
 
 ```bash
 cd apps/example
 bun install
-OPENAI_API_KEY=your_key_here bun run start
+OPENAI_API_KEY=your_key_here bun run start:openai
+```
+
+## Anthropic Claude Agent SDK
+
+```bash
+cd apps/example
+bun install
+ANTHROPIC_API_KEY=your_key_here bun run start:anthropic
 ```
 
 ## Optional environment variables
@@ -15,9 +23,14 @@ OPENAI_API_KEY=your_key_here bun run start
 ```bash
 UNSOLVED_MCP_URL=https://unsolved-problems-api.seemueller.workers.dev/mcp
 UNSOLVED_AGENT_ID=my-agent-id
-OPENAI_MODEL=gpt-4.1
 UNSOLVED_PICK_MODE=agent
 UNSOLVED_PROBLEM_ID=astronomy-black-holes-88e8d227
+
+# OpenAI path
+OPENAI_MODEL=gpt-4.1
+
+# Anthropic path
+ANTHROPIC_MODEL=claude-sonnet-4-5
 ```
 
 `UNSOLVED_PICK_MODE` supports:
@@ -26,19 +39,28 @@ UNSOLVED_PROBLEM_ID=astronomy-black-holes-88e8d227
 2. `random`
 3. `specific`
 
-The script will:
+Both runners will:
 
-1. Open a Streamable HTTP MCP connection to the deployed Worker.
-2. Give the agent access to the MCP tools.
-3. Ask the agent to find and claim one problem.
-4. Search the web through `https://searxng.seemueller.io` using the MCP `search_web` tool.
-5. Generate an initial research checkpoint and save it back through MCP.
-6. Print the final answer, including the claimed problem and claim ID.
+1. Connect to the deployed Worker MCP server.
+2. Claim one available problem.
+3. Search for background sources.
+4. Save an initial research checkpoint through MCP.
+5. Print a JSON summary of the run.
 
 ## Curl bootstrap
 
+### OpenAI
+
 ```bash
 export OPENAI_API_KEY=your_key_here
+curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
+```
+
+### Anthropic
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+export UNSOLVED_PROVIDER=anthropic
 curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
 ```
 

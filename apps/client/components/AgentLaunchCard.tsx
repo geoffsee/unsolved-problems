@@ -2,6 +2,16 @@ import { useState } from "react";
 import { Badge, Box, Button, Flex, Heading, Text } from "@chakra-ui/react";
 
 const providers = {
+  anthropic: {
+    label: "Anthropic",
+    note: "Claude Agent SDK",
+    script: [
+      'export ANTHROPIC_API_KEY="your_api_key_here"',
+      'export ANTHROPIC_MODEL="claude-sonnet-4-5"',
+      'export UNSOLVED_PROVIDER="anthropic"',
+      'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+    ].join("\n"),
+  },
   openai: {
     label: "OpenAI",
     note: "Cloud API",
@@ -36,7 +46,7 @@ const providers = {
 type ProviderKey = keyof typeof providers;
 
 export default function AgentLaunchCard() {
-  const [provider, setProvider] = useState<ProviderKey>("openai");
+  const [provider, setProvider] = useState<ProviderKey>("anthropic");
   const [copied, setCopied] = useState(false);
   const activeProvider = providers[provider];
 
@@ -82,7 +92,7 @@ export default function AgentLaunchCard() {
                 MCP wired
               </Badge>
               <Badge bg="rgba(122, 162, 247, 0.14)" color="#9ab8ff" textTransform="none">
-                OpenAI-compatible
+                Anthropic + OpenAI-compatible
               </Badge>
             </Flex>
             <Heading
@@ -189,7 +199,7 @@ export default function AgentLaunchCard() {
                         ${" "}
                       </Text>
                       <Text as="span">{`export ${name}=`}</Text>
-                      <Text as="span" color={name === "OPENAI_BASE_URL" ? "#e0af68" : "#9ece6a"}>
+                      <Text as="span" color={name === "OPENAI_BASE_URL" || name === "UNSOLVED_PROVIDER" ? "#e0af68" : "#9ece6a"}>
                         {`"${value}"`}
                       </Text>
                     </Box>
