@@ -17,7 +17,7 @@ const customConfig = defineConfig({
                     textDim: { value: "#6e6e7a" },
                     textBright: { value: "#e8e8ed" },
                     accent: { value: "#8a9bb5" },
-                    accentHover: { value: "#000000" },
+                    accentHover: { value: "#aebcd4" },
                     error: { value: "#c0706a" },
                 }
             },

@@ -79,27 +79,40 @@ function ProblemItemExpanded({ categoryKey, section, text, index, liveProblemSta
       }}
       onClick={() => canExpand && setExpanded(!expanded)}
     >
-      <Flex align="center" gap={2} wrap="wrap">
-        <Text as="span" fontFamily="mono" color="app.textDim" fontSize="0.72rem" mr={0.5}>
+      <Flex align="baseline" gap={2}>
+        <Text
+          as="span"
+          flexShrink={0}
+          minW="1.75rem"
+          fontFamily="mono"
+          color="app.textDim"
+          fontSize="0.72rem"
+          lineHeight="inherit"
+          textAlign="right"
+        >
           {index + 1}.
         </Text>
-        <Text as="span">{text}</Text>
-        <RiskBadge risk={risk} />
-        {liveProblemState?.activeClaim && (
-          <Badge bg="orange.100" color="orange.800" textTransform="none">
-            Agent working
-          </Badge>
-        )}
-        {(liveProblemState?.researchCount ?? 0) > 0 && (
-          <Badge bg="blue.100" color="blue.800" textTransform="none">
-            {liveProblemState?.researchCount} notes
-          </Badge>
-        )}
-        {liveProblemState?.hasSubmissions && (
-          <Badge bg="green.100" color="green.800" textTransform="none">
-            Prior submission
-          </Badge>
-        )}
+        <Flex align="center" gap={2} wrap="wrap" flex={1} minW={0}>
+          <Text as="span" minW={0}>
+            {text}
+          </Text>
+          <RiskBadge risk={risk} />
+          {liveProblemState?.activeClaim && (
+            <Badge bg="orange.100" color="orange.800" textTransform="none">
+              Agent working
+            </Badge>
+          )}
+          {(liveProblemState?.researchCount ?? 0) > 0 && (
+            <Badge bg="blue.100" color="blue.800" textTransform="none">
+              {liveProblemState?.researchCount} notes
+            </Badge>
+          )}
+          {liveProblemState?.hasSubmissions && (
+            <Badge bg="green.100" color="green.800" textTransform="none">
+              Prior submission
+            </Badge>
+          )}
+        </Flex>
       </Flex>
       {expanded && (
         <Box
@@ -273,7 +286,7 @@ function Section({ categoryKey, heading, problems, defaultOpen, liveProblemState
         fontWeight="400"
         borderRadius={0}
         onClick={() => setOpen(!open)}
-        _hover={{ color: "app.accentHover", bg: "transparent" }}
+        _hover={{ color: "#ffffff", bg: "transparent" }}
         display="flex"
         alignItems="center"
         gap={2}
