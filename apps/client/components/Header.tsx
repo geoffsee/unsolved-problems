@@ -43,7 +43,7 @@ export default function Header() {
 					color="app.textBright"
 					fontWeight="100"
 				>
-					Open source. Updates daily at midnight
+					Open source | Updates daily at midnight
 				</Text>
 			</Text>
 		</Box>
