@@ -217,6 +217,24 @@ function hasUrl(value: string) {
 	return /https?:\/\/\S+/i.test(value);
 }
 
+const artifactUrlSchema = z
+	.string()
+	.min(1)
+	.refine(
+		(value) => {
+			if (value.startsWith("data:")) return true;
+			try {
+				const parsed = new URL(value);
+				return parsed.protocol === "http:" || parsed.protocol === "https:";
+			} catch {
+				return false;
+			}
+		},
+		{
+			message: "artifactUrl must be an http(s) URL or a data: URI",
+		},
+	);
+
 function slugify(value: string) {
 	return value
 		.toLowerCase()
@@ -1247,9 +1265,7 @@ function createMcpServer(env?: Bindings) {
 					.describe(
 						"Concrete results and citations that support the candidate, including exact URLs where available.",
 					),
-				artifactUrl: z
-					.string()
-					.url()
+				artifactUrl: artifactUrlSchema
 					.optional()
 					.describe(
 						"A durable link to code, derivation, data, paper, or other supporting artifact.",
@@ -1365,12 +1381,10 @@ function createMcpServer(env?: Bindings) {
 					.describe(
 						"State the concrete result or claim, supporting basis, principal limitation, and next discriminating step.",
 					),
-				artifactUrl: z
-					.string()
-					.url()
+				artifactUrl: artifactUrlSchema
 					.optional()
 					.describe(
-						"The most relevant exact source or artifact URL. Required for a reference unless the exact URL appears in content.",
+						"The most relevant exact source or artifact URL. Required for a reference unless the exact URL appears in content. Inline data: URIs are allowed for machine-readable run artifacts such as token usage.",
 					),
 			}),
 		},

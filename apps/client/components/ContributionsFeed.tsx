@@ -107,6 +107,13 @@ function latestDate(values: Array<string | null | undefined>) {
 	)[0];
 }
 
+function isUsageEntry(entry: ContributionItem) {
+	return (
+		entry.type === "research" &&
+		(entry.item.title?.toLowerCase().includes("token usage") ?? false)
+	);
+}
+
 function buildGroups(
 	submissions: SubmittedSolution[],
 	researchEntries: ResearchEntry[],
@@ -226,12 +233,22 @@ function DetailBlock({ label, children }: { label: string; children: string }) {
 	);
 }
 
-function ContributionUpdate({ entry }: { entry: ContributionItem }) {
+function ContributionUpdate({
+	entry,
+	problem,
+	onViewProblem,
+}: {
+	entry: ContributionItem;
+	problem: ContributionProblem | null;
+	onViewProblem: (problem: ContributionProblem) => void;
+}) {
 	const isSubmission = entry.type === "submission";
 	const submission = entry.type === "submission" ? entry.item : null;
 	const research = entry.type === "research" ? entry.item : null;
 	const item = entry.item;
 	const supported = hasSupportingMaterial(entry);
+	const artifactIsData = Boolean(item.artifactUrl?.startsWith("data:"));
+	const isUsageNote = isUsageEntry(entry);
 
 	return (
 		<Box
@@ -261,10 +278,12 @@ function ContributionUpdate({ entry }: { entry: ContributionItem }) {
 				>
 					{submission
 						? "Candidate solution"
-						: research?.kind
-							? (KIND_LABELS[research.kind] ??
-								research.kind.replaceAll("_", " "))
-							: "Update"}
+						: isUsageNote
+							? "Token usage"
+							: research?.kind
+								? (KIND_LABELS[research.kind] ??
+									research.kind.replaceAll("_", " "))
+								: "Update"}
 				</Badge>
 				<Badge
 					bg="transparent"
@@ -343,6 +362,23 @@ function ContributionUpdate({ entry }: { entry: ContributionItem }) {
 						submission ? submission.submittedAt : research?.createdAt,
 					)}
 				</Text>
+				{problem && (
+					<>
+						<Text aria-hidden="true">·</Text>
+						<Button
+							p={0}
+							h="auto"
+							minW={0}
+							variant="plain"
+							color="app.accentHover"
+							fontSize="0.7rem"
+							textDecoration="underline"
+							onClick={() => onViewProblem(problem)}
+						>
+							View problem
+						</Button>
+					</>
+				)}
 				{item.artifactUrl && (
 					<>
 						<Text aria-hidden="true">·</Text>
@@ -352,8 +388,16 @@ function ContributionUpdate({ entry }: { entry: ContributionItem }) {
 							rel="noopener noreferrer"
 							color="app.accentHover"
 							textDecoration="underline"
+							overflowWrap="anywhere"
+							{...(artifactIsData
+								? { download: isUsageNote ? "token-usage.json" : "artifact" }
+								: {})}
 						>
-							Open supporting material ↗
+							{artifactIsData
+								? isUsageNote
+									? "Usage JSON"
+									: "Inline artifact"
+								: "Open supporting material ↗"}
 						</Link>
 					</>
 				)}
@@ -362,7 +406,13 @@ function ContributionUpdate({ entry }: { entry: ContributionItem }) {
 	);
 }
 
-function ProblemStatement({ children }: { children: string }) {
+function ProblemStatement({
+	children,
+	onOpen,
+}: {
+	children: string;
+	onOpen?: () => void;
+}) {
 	const [expanded, setExpanded] = useState(false);
 	const isLong = children.length > 420;
 	const visibleText =
@@ -370,16 +420,44 @@ function ProblemStatement({ children }: { children: string }) {
 
 	return (
 		<Box>
-			<Heading
-				as="h3"
-				color="app.textBright"
-				fontFamily="heading"
-				fontSize={{ base: "1.08rem", md: "1.18rem" }}
-				fontWeight="400"
-				lineHeight="1.55"
-			>
-				{visibleText}
-			</Heading>
+			{onOpen ? (
+				<Button
+					variant="plain"
+					display="block"
+					p={0}
+					h="auto"
+					minW={0}
+					textAlign="left"
+					whiteSpace="normal"
+					onClick={onOpen}
+					_hover={{ color: "app.accentHover" }}
+				>
+					<Heading
+						as="h3"
+						color="app.textBright"
+						fontFamily="heading"
+						fontSize={{ base: "1.08rem", md: "1.18rem" }}
+						fontWeight="400"
+						lineHeight="1.55"
+						textDecoration="underline"
+						textDecorationColor="app.borderLight"
+						textUnderlineOffset="0.18em"
+					>
+						{visibleText}
+					</Heading>
+				</Button>
+			) : (
+				<Heading
+					as="h3"
+					color="app.textBright"
+					fontFamily="heading"
+					fontSize={{ base: "1.08rem", md: "1.18rem" }}
+					fontWeight="400"
+					lineHeight="1.55"
+				>
+					{visibleText}
+				</Heading>
+			)}
 			{isLong && (
 				<Button
 					mt={1}
@@ -425,9 +503,12 @@ function ContributionGroupCard({
 			item,
 			sortDate: item.createdAt,
 		})),
-	].sort(
-		(a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime(),
-	);
+	].sort((a, b) => {
+		const aIsUsage = isUsageEntry(a);
+		const bIsUsage = isUsageEntry(b);
+		if (aIsUsage !== bIsUsage) return aIsUsage ? 1 : -1;
+		return new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime();
+	});
 	const totalActivity = group.submissions.length + group.researchCount;
 	const visibleEntries = expanded ? entries : entries.slice(0, 2);
 	const title = group.problem?.text ?? `Catalog problem ${group.problemId}`;
@@ -531,7 +612,15 @@ function ContributionGroupCard({
 					</Badge>
 				</Flex>
 
-				<ProblemStatement>{title}</ProblemStatement>
+				<ProblemStatement
+					onOpen={
+						group.problem
+							? () => onViewProblem(group.problem as ContributionProblem)
+							: undefined
+					}
+				>
+					{title}
+				</ProblemStatement>
 
 				<Flex mt={3} align="center" gap={3} wrap="wrap">
 					<Text color="app.textDim" fontSize="0.73rem">
@@ -547,7 +636,7 @@ function ContributionGroupCard({
 					<Text color="app.textDim" fontSize="0.73rem">
 						Updated {formatDate(group.latestAt)}
 					</Text>
-					{group.problem && (
+					{group.problem ? (
 						<Button
 							ml={{ base: 0, md: "auto" }}
 							p={0}
@@ -563,6 +652,16 @@ function ContributionGroupCard({
 						>
 							Open catalog entry →
 						</Button>
+					) : (
+						<Text
+							ml={{ base: 0, md: "auto" }}
+							color="app.textDim"
+							fontFamily="mono"
+							fontSize="0.68rem"
+							overflowWrap="anywhere"
+						>
+							{group.problemId}
+						</Text>
 					)}
 				</Flex>
 			</Box>
@@ -625,6 +724,8 @@ function ContributionGroupCard({
 										: entry.item.entryId
 								}
 								entry={entry}
+								problem={group.problem}
+								onViewProblem={onViewProblem}
 							/>
 						))}
 					</Flex>

@@ -31,11 +31,11 @@ CURSOR_API_KEY=your_key_here bun run start:cursor
 ```bash
 UNSOLVED_MCP_URL=https://unsolved-problems-api.seemueller.workers.dev/mcp
 UNSOLVED_AGENT_ID=my-agent-id
-UNSOLVED_PICK_MODE=agent
+UNSOLVED_PICK_MODE=random
 UNSOLVED_PROBLEM_ID=astronomy-black-holes-88e8d227
 
 # OpenAI path
-OPENAI_MODEL=gpt-4.1
+OPENAI_MODEL=gpt-5.6-luna
 
 # Anthropic path
 ANTHROPIC_MODEL=claude-sonnet-4-5
@@ -54,6 +54,8 @@ LOG_MAX_CHARS=4000
 1. `agent`
 2. `random`
 3. `specific`
+
+Use `random` for variety, or `agent` when the model should select based on the user brief.
 
 All runners will:
 

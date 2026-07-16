@@ -10,6 +10,10 @@ import {
 	summarizeContentBlocks,
 	truncate,
 } from "./logger";
+import {
+	extractProblemIdFromUnknown,
+	saveUsageArtifact,
+} from "./usageArtifact";
 
 const log = createLogger({ agent: "anthropic" });
 
@@ -310,6 +314,11 @@ async function main() {
 
 	let finalResult: string | null = null;
 	let sessionId: string | null = null;
+	let claimedProblemId: string | null = SPECIFIC_PROBLEM_ID;
+	let usage: Record<string, unknown> | null = null;
+	let modelUsage: Record<string, unknown> | null = null;
+	let totalCostUsd: number | null = null;
+	let numTurns: number | null = null;
 
 	for await (const message of query({
 		prompt,
@@ -351,9 +360,30 @@ async function main() {
 			sessionId = message.session_id;
 		}
 
+		if (message.type === "assistant") {
+			for (const block of message.message.content) {
+				if (
+					block &&
+					typeof block === "object" &&
+					"type" in block &&
+					block.type === "tool_use" &&
+					"input" in block
+				) {
+					const problemId = extractProblemIdFromUnknown(block.input);
+					if (problemId) {
+						claimedProblemId = problemId;
+					}
+				}
+			}
+		}
+
 		if (message.type === "result") {
 			if (message.subtype === "success") {
 				finalResult = message.result;
+				usage = message.usage as unknown as Record<string, unknown>;
+				modelUsage = message.modelUsage as unknown as Record<string, unknown>;
+				totalCostUsd = message.total_cost_usd;
+				numTurns = message.num_turns;
 			} else {
 				const detail = message.errors?.length
 					? message.errors.join("; ")
@@ -363,14 +393,46 @@ async function main() {
 		}
 	}
 
+	if (claimedProblemId && usage) {
+		await saveUsageArtifact(log, {
+			mcpUrl: MCP_URL,
+			problemId: claimedProblemId,
+			agentId: AGENT_ID,
+			provider: "anthropic",
+			model: MODEL,
+			totals: {
+				numTurns,
+				totalCostUsd,
+				inputTokens: usage.input_tokens as number | undefined,
+				outputTokens: usage.output_tokens as number | undefined,
+				cacheReadTokens: usage.cache_read_input_tokens as number | undefined,
+				cacheCreationTokens: usage.cache_creation_input_tokens as
+					| number
+					| undefined,
+			},
+			details: {
+				usage,
+				modelUsage,
+			},
+		});
+	} else {
+		log.warn("skipping token usage artifact", {
+			claimedProblemId,
+			hasUsage: Boolean(usage),
+		});
+	}
+
 	const summary = {
 		mcpUrl: MCP_URL,
 		model: MODEL,
 		agentId: AGENT_ID,
 		pickMode: PICK_MODE,
-		problemId: SPECIFIC_PROBLEM_ID,
+		problemId: claimedProblemId,
 		userGoal: USER_GOAL || null,
 		sessionId,
+		usage,
+		totalCostUsd,
+		numTurns,
 		result: finalResult,
 	};
 

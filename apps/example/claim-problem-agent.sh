@@ -61,6 +61,7 @@ curl -fsSL "${base_url}/src/index.ts" -o "${tmp_dir}/src/index.ts"
 curl -fsSL "${base_url}/src/anthropic.ts" -o "${tmp_dir}/src/anthropic.ts"
 curl -fsSL "${base_url}/src/cursor.ts" -o "${tmp_dir}/src/cursor.ts"
 curl -fsSL "${base_url}/src/logger.ts" -o "${tmp_dir}/src/logger.ts"
+curl -fsSL "${base_url}/src/usageArtifact.ts" -o "${tmp_dir}/src/usageArtifact.ts"
 
 pick_mode="${UNSOLVED_PICK_MODE:-}"
 problem_id="${UNSOLVED_PROBLEM_ID:-}"

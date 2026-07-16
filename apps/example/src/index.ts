@@ -1,6 +1,7 @@
 import { Agent, MCPServerStreamableHttp, run } from "@openai/agents";
 import { z } from "zod";
 import { createLogger, truncate, withToolLogging } from "./logger";
+import { saveUsageArtifact } from "./usageArtifact";
 
 const log = createLogger({ agent: "openai" });
 
@@ -9,9 +10,12 @@ const MCP_URL =
 	"https://unsolved-problems-api.seemueller.workers.dev/mcp";
 const AGENT_ID =
 	process.env.UNSOLVED_AGENT_ID || `openai-agents-sdk-${Date.now()}`;
-const MODEL = process.env.OPENAI_MODEL || "gpt-4.1";
+const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-luna";
+const MODEL_SETTINGS = {
+	reasoning: { effort: "low" as const },
+};
 const LEASE_MINUTES = 60;
-const PICK_MODE = process.env.UNSOLVED_PICK_MODE || "agent";
+const PICK_MODE = process.env.UNSOLVED_PICK_MODE || "random";
 const SPECIFIC_PROBLEM_ID = process.env.UNSOLVED_PROBLEM_ID || null;
 const USER_GOAL = process.env.UNSOLVED_USER_GOAL || "";
 const USER_BACKGROUND = process.env.UNSOLVED_USER_BACKGROUND || "";
@@ -33,7 +37,17 @@ const ResearchCheckpointSchema = z.object({
 	]),
 	title: z.string(),
 	content: z.string(),
-	sourceUrl: z.string().url().nullable(),
+	sourceUrl: z
+		.string()
+		.refine((value) => {
+			try {
+				const url = new URL(value);
+				return url.protocol === "http:" || url.protocol === "https:";
+			} catch {
+				return false;
+			}
+		}, "sourceUrl must be an http(s) URL")
+		.nullable(),
 });
 
 function getText(content: Array<{ type: string; text?: string }>) {
@@ -123,6 +137,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 		return {
 			chosenProblemId: SPECIFIC_PROBLEM_ID,
 			reason: "Selected explicitly by the launcher.",
+			usage: null,
 		};
 	}
 
@@ -145,6 +160,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 		return {
 			chosenProblemId,
 			reason: "Selected randomly from the live available shortlist.",
+			usage: null,
 		};
 	}
 
@@ -156,6 +172,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 	const selector = new Agent({
 		name: "Problem Selector",
 		model: MODEL,
+		modelSettings: MODEL_SETTINGS,
 		outputType: SelectionSchema,
 		instructions: [
 			"Choose one unsolved problem to work on from the supplied candidates.",
@@ -194,6 +211,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 	return {
 		chosenProblemId,
 		reason: selection.finalOutput.reason,
+		usage: selection.state.usage,
 	};
 }
 
@@ -223,7 +241,11 @@ async function main() {
 
 	try {
 		const userBrief = buildUserBrief();
-		const { chosenProblemId, reason } = await chooseProblemId(mcpServer);
+		const {
+			chosenProblemId,
+			reason,
+			usage: selectorUsage,
+		} = await chooseProblemId(mcpServer);
 
 		const pickArgs = {
 			agentId: AGENT_ID,
@@ -300,6 +322,7 @@ async function main() {
 		const researcher = new Agent({
 			name: "Research Kickoff",
 			model: MODEL,
+			modelSettings: MODEL_SETTINGS,
 			mcpServers: [mcpServer],
 			outputType: ResearchCheckpointSchema,
 			instructions: [
@@ -350,6 +373,45 @@ async function main() {
 			log.warn("skipping save_progress; empty research checkpoint");
 		}
 
+		const researchUsage = kickoff.state.usage;
+		const usageTotals = {
+			requests: (selectorUsage?.requests ?? 0) + (researchUsage.requests ?? 0),
+			inputTokens:
+				(selectorUsage?.inputTokens ?? 0) + (researchUsage.inputTokens ?? 0),
+			outputTokens:
+				(selectorUsage?.outputTokens ?? 0) + (researchUsage.outputTokens ?? 0),
+			totalTokens:
+				(selectorUsage?.totalTokens ?? 0) + (researchUsage.totalTokens ?? 0),
+		};
+
+		await saveUsageArtifact(log, {
+			mcpUrl: MCP_URL,
+			problemId: chosenProblemId,
+			agentId: AGENT_ID,
+			provider: "openai",
+			model: MODEL,
+			totals: usageTotals,
+			details: {
+				selector: selectorUsage
+					? {
+							requests: selectorUsage.requests,
+							inputTokens: selectorUsage.inputTokens,
+							outputTokens: selectorUsage.outputTokens,
+							totalTokens: selectorUsage.totalTokens,
+						}
+					: null,
+				research: {
+					requests: researchUsage.requests,
+					inputTokens: researchUsage.inputTokens,
+					outputTokens: researchUsage.outputTokens,
+					totalTokens: researchUsage.totalTokens,
+					inputTokensDetails: researchUsage.inputTokensDetails,
+					outputTokensDetails: researchUsage.outputTokensDetails,
+				},
+			},
+			callTool: (name, args) => mcpServer.callTool(name, args),
+		});
+
 		const summary = {
 			mcpUrl: MCP_URL,
 			model: MODEL,
@@ -364,6 +426,7 @@ async function main() {
 			userGoal: USER_GOAL || null,
 			priorResearchCount: problem.researchEntries?.length ?? 0,
 			researchUpdate: checkpoint ?? null,
+			usage: usageTotals,
 		};
 
 		log.info("run complete", summary);

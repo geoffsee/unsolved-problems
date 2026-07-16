@@ -12,6 +12,10 @@ import {
 	summarizeContentBlocks,
 	truncate,
 } from "./logger";
+import {
+	extractProblemIdFromUnknown,
+	saveUsageArtifact,
+} from "./usageArtifact";
 
 const log = createLogger({ agent: "cursor" });
 
@@ -341,8 +345,28 @@ async function main() {
 		runId: run.id,
 	});
 
+	let claimedProblemId: string | null = SPECIFIC_PROBLEM_ID;
+
 	for await (const event of run.stream()) {
 		logSdkMessage(log, event);
+
+		if (event.type === "tool_call") {
+			const fromArgs = extractProblemIdFromUnknown(event.args);
+			if (fromArgs) {
+				claimedProblemId = fromArgs;
+			}
+		}
+
+		if (event.type === "assistant") {
+			for (const block of event.message.content) {
+				if (block.type === "tool_use") {
+					const fromInput = extractProblemIdFromUnknown(block.input);
+					if (fromInput) {
+						claimedProblemId = fromInput;
+					}
+				}
+			}
+		}
 	}
 
 	const result = await run.wait();
@@ -360,6 +384,35 @@ async function main() {
 		);
 	}
 
+	if (claimedProblemId && result.usage) {
+		await saveUsageArtifact(log, {
+			mcpUrl: MCP_URL,
+			problemId: claimedProblemId,
+			agentId: AGENT_ID,
+			provider: "cursor",
+			model: MODEL,
+			totals: {
+				inputTokens: result.usage.inputTokens,
+				outputTokens: result.usage.outputTokens,
+				cacheReadTokens: result.usage.cacheReadTokens,
+				cacheWriteTokens: result.usage.cacheWriteTokens,
+				totalTokens: result.usage.totalTokens,
+				reasoningTokens: result.usage.reasoningTokens ?? null,
+				durationMs: result.durationMs ?? null,
+			},
+			details: {
+				cursorAgentId: agent.agentId,
+				runId: result.id,
+				usage: result.usage,
+			},
+		});
+	} else {
+		log.warn("skipping token usage artifact", {
+			claimedProblemId,
+			hasUsage: Boolean(result.usage),
+		});
+	}
+
 	const summary = {
 		mcpUrl: MCP_URL,
 		model: MODEL,
@@ -367,7 +420,7 @@ async function main() {
 		cursorAgentId: agent.agentId,
 		runId: result.id,
 		pickMode: PICK_MODE,
-		problemId: SPECIFIC_PROBLEM_ID,
+		problemId: claimedProblemId,
 		userGoal: USER_GOAL || null,
 		status: result.status,
 		durationMs: result.durationMs ?? null,
