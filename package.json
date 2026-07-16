@@ -13,7 +13,7 @@
 		"format": "biome format --write .",
 		"typecheck": "bun run --workspaces typecheck",
 		"test": "bun test --coverage",
-		"contributor:dev": "cd apps/example && bun --env-file=../../.env.morning-contributor run start:anthropic"
+		"contributor:dev:anthropic": "cd apps/example && env -u ANTHROPIC_API_KEY -u OPENALEX_API_KEY -u OPENALEX_MAILTO -u SEARXNG_URL bun --env-file=../../.env.morning-contributor run start:anthropic"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.4"

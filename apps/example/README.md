@@ -18,6 +18,14 @@ bun install
 ANTHROPIC_API_KEY=your_key_here bun run start:anthropic
 ```
 
+## Cursor Agent SDK
+
+```bash
+cd apps/example
+bun install
+CURSOR_API_KEY=your_key_here bun run start:cursor
+```
+
 ## Optional environment variables
 
 ```bash
@@ -31,6 +39,14 @@ OPENAI_MODEL=gpt-4.1
 
 # Anthropic path
 ANTHROPIC_MODEL=claude-sonnet-4-5
+
+# Cursor path
+CURSOR_MODEL=composer-2.5
+CURSOR_CWD=.
+
+# Shared logging
+LOG_LEVEL=debug
+LOG_MAX_CHARS=4000
 ```
 
 `UNSOLVED_PICK_MODE` supports:
@@ -39,7 +55,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-5
 2. `random`
 3. `specific`
 
-Both runners will:
+All runners will:
 
 1. Connect to the deployed Worker MCP server.
 2. Claim one available problem.
@@ -61,6 +77,14 @@ curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/a
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
 export UNSOLVED_PROVIDER=anthropic
+curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
+```
+
+### Cursor
+
+```bash
+export CURSOR_API_KEY=your_key_here
+export UNSOLVED_PROVIDER=cursor
 curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
 ```
 

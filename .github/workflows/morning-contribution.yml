@@ -40,7 +40,7 @@ jobs:
 
       - name: Install dependencies
         if: env.skip != 'true'
-        run: bun install
+        run: bun install && bunx playwright install --with-deps chromium
 
       - name: Claim a problem and save a contribution
         if: env.skip != 'true'

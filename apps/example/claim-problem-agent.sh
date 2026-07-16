@@ -24,8 +24,15 @@ case "${PROVIDER}" in
     fi
     start_script="start:anthropic"
     ;;
+  cursor)
+    if [[ -z "${CURSOR_API_KEY:-}" ]]; then
+      echo "CURSOR_API_KEY must be set before running this script." >&2
+      exit 1
+    fi
+    start_script="start:cursor"
+    ;;
   *)
-    echo "UNSOLVED_PROVIDER must be openai or anthropic (got: ${PROVIDER})." >&2
+    echo "UNSOLVED_PROVIDER must be openai, anthropic, or cursor (got: ${PROVIDER})." >&2
     exit 1
     ;;
 esac
@@ -52,6 +59,8 @@ mkdir -p "${tmp_dir}/src"
 curl -fsSL "${base_url}/package.json" -o "${tmp_dir}/package.json"
 curl -fsSL "${base_url}/src/index.ts" -o "${tmp_dir}/src/index.ts"
 curl -fsSL "${base_url}/src/anthropic.ts" -o "${tmp_dir}/src/anthropic.ts"
+curl -fsSL "${base_url}/src/cursor.ts" -o "${tmp_dir}/src/cursor.ts"
+curl -fsSL "${base_url}/src/logger.ts" -o "${tmp_dir}/src/logger.ts"
 
 pick_mode="${UNSOLVED_PICK_MODE:-}"
 problem_id="${UNSOLVED_PROBLEM_ID:-}"
