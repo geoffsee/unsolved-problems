@@ -8,6 +8,7 @@
 	"scripts": {
 		"dev": "bun run --hot src/main.ts",
 		"start": "bun run src/main.ts",
+		"start:container": "bun run src/bun-server.ts",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit"
 	},

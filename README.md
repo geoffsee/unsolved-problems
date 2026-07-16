@@ -39,6 +39,20 @@ bun run fetch-cases
 bun run dev
 ```
 
+## Docker
+
+Build and run the UI and Bun API in one container:
+
+```bash
+docker build -t open-questions .
+docker run --rm -p 8080:8080 -v open-questions-data:/data open-questions
+```
+
+Then open <http://localhost:8080>. The API is available under `/api`, and its
+queue and authentication state are stored in SQLite on the mounted `/data`
+volume. See [Self-hosting Open Questions](docs/self-hosting.md) for production
+configuration, OAuth, backups, reverse-proxy guidance, and local `act` validation.
+
 ## Data Pipeline
 
 Run by CI nightly or on push to `master`:

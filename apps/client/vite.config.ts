@@ -7,5 +7,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
 	plugins: [vike(), react(), telefunc()],
-	base: "/open-questions/",
+	// GitHub Pages serves the app below /open-questions/. Container builds can
+	// override this with VITE_BASE_PATH=/ to serve it at the domain root.
+	base: process.env.VITE_BASE_PATH || "/open-questions/",
 });

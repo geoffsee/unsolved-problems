@@ -1,4 +1,5 @@
 export const AGENT_RESEARCH_API_ORIGIN =
+	import.meta.env.VITE_API_ORIGIN ||
 	"https://unsolved-problems-api.seemueller.workers.dev";
 
 export interface LiveClaim {

@@ -1,5 +1,3 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	McpServer,
@@ -31,6 +29,7 @@ import {
 	unauthorizedContributionMessage,
 	verifyOAuthState,
 } from "./auth";
+import { JsonFileStateStore, type StateStore } from "./persistence";
 
 export { AuthStoreDurableObject };
 
@@ -201,11 +200,12 @@ const FORWARDED_HEADERS = [
 	"last-modified",
 ];
 
-let localQueueState: QueueState = {
+const EMPTY_QUEUE_STATE: QueueState = {
 	claimsByProblemId: {},
 	solutionsByProblemId: {},
 	researchEntriesByProblemId: {},
 };
+let queueStore: StateStore<QueueState> | undefined;
 
 let cachedProblems:
 	| {
@@ -329,31 +329,32 @@ export function cloneQueueState(state: QueueState): QueueState {
 	};
 }
 
-function readLocalQueueState() {
-	const localStatePath = getLocalStatePath();
-	if (localStatePath && existsSync(localStatePath)) {
-		try {
-			return JSON.parse(readFileSync(localStatePath, "utf-8")) as QueueState;
-		} catch {
-			return cloneQueueState(localQueueState);
-		}
-	}
+export function emptyQueueState(): QueueState {
+	return cloneQueueState(EMPTY_QUEUE_STATE);
+}
 
-	return cloneQueueState(localQueueState);
+function getQueueStore(): StateStore<QueueState> {
+	if (!queueStore) {
+		queueStore = new JsonFileStateStore(
+			getLocalStatePath(),
+			emptyQueueState(),
+			cloneQueueState,
+		);
+	}
+	return queueStore;
+}
+
+function readLocalQueueState() {
+	return getQueueStore().read();
 }
 
 function writeLocalQueueState(state: QueueState) {
-	localQueueState = cloneQueueState(state);
+	getQueueStore().write(state);
+}
 
-	const localStatePath = getLocalStatePath();
-	if (!localStatePath) return;
-
-	try {
-		mkdirSync(dirname(localStatePath), { recursive: true });
-		writeFileSync(localStatePath, JSON.stringify(localQueueState, null, 2));
-	} catch {
-		// Ignore local persistence failures and continue serving from memory.
-	}
+/** Override local persistence, for example with a SQLite-backed Bun store. */
+export function configureQueueStore(store: StateStore<QueueState>) {
+	queueStore = store;
 }
 
 export function pruneExpiredClaims(state: QueueState) {
@@ -1999,7 +2000,7 @@ app.post("/auth/logout", async (c) => {
 
 app.get("/auth/tokens", async (c) => {
 	const principal = await resolvePrincipal(c.req.raw, c.env);
-	if (!principal || principal.kind !== "session") {
+	if (principal?.kind !== "session") {
 		return jsonError(
 			"Sign in with GitHub and present the session Bearer token to list API tokens.",
 			401,
@@ -2011,7 +2012,7 @@ app.get("/auth/tokens", async (c) => {
 
 app.post("/auth/tokens", async (c) => {
 	const principal = await resolvePrincipal(c.req.raw, c.env);
-	if (!principal || principal.kind !== "session") {
+	if (principal?.kind !== "session") {
 		return jsonError(
 			"Sign in with GitHub and present the session Bearer token to create an API token.",
 			401,
@@ -2042,7 +2043,7 @@ app.post("/auth/tokens", async (c) => {
 
 app.delete("/auth/tokens/:tokenId", async (c) => {
 	const principal = await resolvePrincipal(c.req.raw, c.env);
-	if (!principal || principal.kind !== "session") {
+	if (principal?.kind !== "session") {
 		return jsonError(
 			"Sign in with GitHub and present the session Bearer token to revoke API tokens.",
 			401,
@@ -2183,11 +2184,11 @@ app.notFound(() => jsonError("Not found.", 404));
 /** Test helper: clear in-memory problem cache and queue state. */
 export function resetLocalRuntimeStateForTests() {
 	cachedProblems = undefined;
-	localQueueState = {
-		claimsByProblemId: {},
-		solutionsByProblemId: {},
-		researchEntriesByProblemId: {},
-	};
+	queueStore = new JsonFileStateStore(
+		getLocalStatePath(),
+		emptyQueueState(),
+		cloneQueueState,
+	);
 }
 
 export default {

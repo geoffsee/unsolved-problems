@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { JsonFileStateStore, type StateStore } from "./persistence";
 
 export type AuthBindings = {
 	PAGES_ORIGIN?: string;
@@ -73,9 +72,9 @@ const DEFAULT_PAGES_ORIGIN = "https://geoffsee.github.io/open-questions";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
 
-let localAuthState: AuthStoreState = emptyAuthState();
+let authStore: StateStore<AuthStoreState> | undefined;
 
-function emptyAuthState(): AuthStoreState {
+export function emptyAuthState(): AuthStoreState {
 	return {
 		sessionsById: {},
 		tokensById: {},
@@ -127,34 +126,37 @@ export function cloneAuthState(state: AuthStoreState): AuthStoreState {
 	};
 }
 
-function readLocalAuthState(): AuthStoreState {
-	const path = getLocalAuthPath();
-	if (path && existsSync(path)) {
-		try {
-			return cloneAuthState(
-				JSON.parse(readFileSync(path, "utf-8")) as AuthStoreState,
-			);
-		} catch {
-			return cloneAuthState(localAuthState);
-		}
+function getAuthStore(): StateStore<AuthStoreState> {
+	if (!authStore) {
+		authStore = new JsonFileStateStore(
+			getLocalAuthPath(),
+			emptyAuthState(),
+			cloneAuthState,
+		);
 	}
-	return cloneAuthState(localAuthState);
+	return authStore;
+}
+
+function readLocalAuthState(): AuthStoreState {
+	return getAuthStore().read();
 }
 
 function writeLocalAuthState(state: AuthStoreState) {
-	localAuthState = cloneAuthState(state);
-	const path = getLocalAuthPath();
-	if (!path) return;
-	try {
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, JSON.stringify(localAuthState, null, 2));
-	} catch {
-		// Keep serving from memory if disk is unavailable.
-	}
+	getAuthStore().write(state);
+}
+
+/** Override local persistence, for example with a database-backed Bun store. */
+export function configureAuthStore(store: StateStore<AuthStoreState>) {
+	authStore = store;
 }
 
 export function resetLocalAuthStateForTests() {
-	localAuthState = emptyAuthState();
+	authStore = new JsonFileStateStore(
+		getLocalAuthPath(),
+		emptyAuthState(),
+		cloneAuthState,
+	);
+	authStore.write(emptyAuthState());
 }
 
 export function getPagesOrigin(env?: AuthBindings) {

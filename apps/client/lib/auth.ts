@@ -80,7 +80,10 @@ export function githubLoginUrl(returnTo?: string): string {
 		(typeof window !== "undefined"
 			? window.location.href.split("#")[0]
 			: `${AGENT_RESEARCH_API_ORIGIN}/`);
-	const url = new URL(`${AGENT_RESEARCH_API_ORIGIN}/auth/github`);
+	const url = new URL(
+		`${AGENT_RESEARCH_API_ORIGIN}/auth/github`,
+		typeof window !== "undefined" ? window.location.origin : undefined,
+	);
 	url.searchParams.set("return_to", target ?? "");
 	return url.toString();
 }
