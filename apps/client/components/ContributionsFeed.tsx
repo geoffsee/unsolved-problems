@@ -71,10 +71,13 @@ function formatDate(dateStr: string | null | undefined) {
 	const date = new Date(dateStr);
 	if (Number.isNaN(date.getTime())) return dateStr;
 
-	return date.toLocaleDateString("en-US", {
+	return date.toLocaleString("en-US", {
 		year: "numeric",
 		month: "short",
 		day: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
+		second: "2-digit",
 	});
 }
 
