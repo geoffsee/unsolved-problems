@@ -132,6 +132,12 @@ export function pickRandomCategory(categories: string[]): string {
 	return categories[Math.floor(Math.random() * categories.length)]!;
 }
 
+function bearerHeaders(): Record<string, string> {
+	const token = process.env.UNSOLVED_API_TOKEN?.trim();
+	if (!token) return {};
+	return { authorization: `Bearer ${token}` };
+}
+
 async function callMcp(
 	mcpUrl: string,
 	method: string,
@@ -143,6 +149,7 @@ async function callMcp(
 			"content-type": "application/json",
 			accept: "application/json, text/event-stream",
 			"mcp-protocol-version": "2025-03-26",
+			...bearerHeaders(),
 		},
 		body: JSON.stringify({
 			jsonrpc: "2.0",

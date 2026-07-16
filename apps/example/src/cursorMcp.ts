@@ -86,14 +86,17 @@ export function buildMcpServers(input: {
 	cwd: string;
 	env?: NodeJS.ProcessEnv;
 }): Record<string, McpServerConfig> {
+	const env = input.env ?? process.env;
+	const apiToken = env.UNSOLVED_API_TOKEN?.trim();
 	return {
 		unsolved: {
 			type: "http",
 			url: input.mcpUrl,
 			headers: {
 				Accept: "application/json, text/event-stream",
+				...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
 			},
 		},
-		...loadResearchMcpServers({ cwd: input.cwd, env: input.env }),
+		...loadResearchMcpServers({ cwd: input.cwd, env }),
 	};
 }

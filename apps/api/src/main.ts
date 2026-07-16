@@ -9,8 +9,32 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import {
+	type AuthBindings,
+	type AuthenticatedPrincipal,
+	AuthStoreDurableObject,
+	createApiToken,
+	createOAuthState,
+	createSession,
+	exchangeGithubCode,
+	getPagesOrigin as getAuthPagesOrigin,
+	getGithubClientId,
+	isContributionAuthRequired,
+	isDevAuthAllowed,
+	isSafeReturnTo,
+	listApiTokens,
+	publicTokenView,
+	requireContributionAuth,
+	resolvePrincipal,
+	revokeApiToken,
+	revokeSession,
+	unauthorizedContributionMessage,
+	verifyOAuthState,
+} from "./auth";
 
-type Bindings = {
+export { AuthStoreDurableObject };
+
+type Bindings = AuthBindings & {
 	PAGES_ORIGIN?: string;
 	PROBLEM_QUEUE?: DurableObjectNamespace;
 };
@@ -901,11 +925,29 @@ export function createCatalogSummary(
 	};
 }
 
-function createMcpServer(env?: Bindings) {
+function contributionAuthError() {
+	return {
+		content: textContent(unauthorizedContributionMessage()),
+		isError: true as const,
+	};
+}
+
+function createMcpServer(
+	env?: Bindings,
+	principal: AuthenticatedPrincipal | null = null,
+) {
 	const server = new McpServer({
 		name: "unsolved-problems",
 		version: APP_VERSION,
 	});
+
+	const requireContributor = () => {
+		const allowed = requireContributionAuth(principal, env);
+		if (isContributionAuthRequired(env) && !allowed) {
+			return null;
+		}
+		return allowed ?? principal;
+	};
 
 	server.registerResource(
 		"catalog",
@@ -1147,6 +1189,11 @@ function createMcpServer(env?: Bindings) {
 			}),
 		},
 		async ({ agentId, problemId, category, query, leaseMinutes, notes }) => {
+			const contributor = requireContributor();
+			if (isContributionAuthRequired(env) && !contributor) {
+				return contributionAuthError();
+			}
+
 			const normalizedAgentId = normalizeText(agentId);
 			const [problems, state] = await Promise.all([
 				loadProblems(env),
@@ -1204,12 +1251,19 @@ function createMcpServer(env?: Bindings) {
 				};
 			}
 
+			const claimNotes = [
+				notes ? normalizeText(notes) : null,
+				contributor ? `github:${contributor.user.login}` : null,
+			]
+				.filter(Boolean)
+				.join(" · ");
+
 			const result = await createClaim(
 				env,
 				selected.id,
 				normalizedAgentId,
 				leaseMinutes,
-				notes ? normalizeText(notes) : null,
+				claimNotes || null,
 			);
 			const freshState = await readQueueState(env);
 
@@ -1245,6 +1299,9 @@ function createMcpServer(env?: Bindings) {
 			}),
 		},
 		async ({ claimId, agentId }) => {
+			if (isContributionAuthRequired(env) && !requireContributor()) {
+				return contributionAuthError();
+			}
 			try {
 				const result = await releaseClaim(env, claimId, normalizeText(agentId));
 				return {
@@ -1329,6 +1386,9 @@ function createMcpServer(env?: Bindings) {
 			artifactUrl,
 			confidence,
 		}) => {
+			if (isContributionAuthRequired(env) && !requireContributor()) {
+				return contributionAuthError();
+			}
 			try {
 				const normalizedAgentId = normalizeText(agentId);
 				const result = await submitClaimSolution(env, {
@@ -1428,6 +1488,10 @@ function createMcpServer(env?: Bindings) {
 			}),
 		},
 		async ({ problemId, agentId, kind, title, content, artifactUrl }) => {
+			if (isContributionAuthRequired(env) && !requireContributor()) {
+				return contributionAuthError();
+			}
+
 			const problem = await getProblem(problemId, env);
 			if (!problem) {
 				return {
@@ -1580,7 +1644,8 @@ function createMcpServer(env?: Bindings) {
 }
 
 async function handleMcpRequest(request: Request, env?: Bindings) {
-	const server = createMcpServer(env);
+	const principal = await resolvePrincipal(request, env);
+	const server = createMcpServer(env, principal);
 	const transport = new WebStandardStreamableHTTPServerTransport({
 		sessionIdGenerator: undefined,
 		enableJsonResponse: true,
@@ -1765,7 +1830,12 @@ app.use(
 	"*",
 	cors({
 		origin: "*",
-		allowHeaders: ["Content-Type", "Accept", "MCP-Protocol-Version"],
+		allowHeaders: [
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"MCP-Protocol-Version",
+		],
 		allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
 		exposeHeaders: ["MCP-Protocol-Version"],
 	}),
@@ -1776,10 +1846,24 @@ app.get("/", (c) =>
 		name: "unsolved-problems-api",
 		version: APP_VERSION,
 		upstream: getPagesOrigin(c.env),
+		auth: {
+			githubConfigured: Boolean(getGithubClientId(c.env)),
+			contributionAuthRequired: isContributionAuthRequired(c.env),
+			bearer: "Authorization: Bearer <api_token>",
+			login: "/auth/github",
+			me: "/auth/me",
+			tokens: "/auth/tokens",
+		},
 		mcp: {
 			endpoint: "/mcp",
 			transport: "streamable-http",
 			jsonResponsesOnly: true,
+			contributionToolsRequireBearer: [
+				"pick_problem",
+				"release_problem",
+				"submit_solution",
+				"save_progress",
+			],
 			tools: [
 				"list_problems",
 				"pick_problem",
@@ -1800,6 +1884,11 @@ app.get("/", (c) =>
 			"/health",
 			"/queue",
 			"/mcp",
+			"/auth/github",
+			"/auth/github/callback",
+			"/auth/me",
+			"/auth/tokens",
+			"/auth/logout",
 			"/problems/:problemId",
 			"/problems/:problemId/research",
 			"/data/problems.json",
@@ -1823,6 +1912,178 @@ app.get("/health", async (c) =>
 );
 
 app.get("/queue", async (c) => c.json(await getQueueSnapshot(c.env)));
+
+app.get("/auth/github", async (c) => {
+	const clientId = getGithubClientId(c.env);
+	if (!clientId) {
+		return jsonError(
+			"GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET on the API.",
+			503,
+		);
+	}
+
+	const returnToRaw =
+		c.req.query("return_to") || `${getAuthPagesOrigin(c.env)}/`;
+	if (!isSafeReturnTo(returnToRaw, c.env)) {
+		return jsonError("return_to must point at the Catalog site origin.", 400);
+	}
+
+	const state = await createOAuthState(returnToRaw, c.env);
+
+	const authorize = new URL("https://github.com/login/oauth/authorize");
+	authorize.searchParams.set("client_id", clientId);
+	authorize.searchParams.set("scope", "read:user");
+	authorize.searchParams.set("state", state);
+	const callbackUrl = new URL("/auth/github/callback", c.req.url);
+	authorize.searchParams.set("redirect_uri", callbackUrl.toString());
+
+	return c.redirect(authorize.toString(), 302);
+});
+
+app.get("/auth/github/callback", async (c) => {
+	const code = c.req.query("code");
+	const state = c.req.query("state");
+	if (!code || !state) {
+		return jsonError("Missing OAuth code or state.", 400);
+	}
+
+	const returnTo = await verifyOAuthState(state, c.env);
+	if (!returnTo) {
+		return jsonError("OAuth state is invalid or expired.", 400);
+	}
+
+	try {
+		const user = await exchangeGithubCode(code, c.env);
+		const { sessionToken } = await createSession(user, c.env);
+		const redirectUrl = new URL(returnTo);
+		redirectUrl.hash = `auth_session=${encodeURIComponent(sessionToken)}`;
+		return c.redirect(redirectUrl.toString(), 302);
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "GitHub OAuth failed.";
+		return jsonError(message, 502);
+	}
+});
+
+app.get("/auth/me", async (c) => {
+	const principal = await resolvePrincipal(c.req.raw, c.env);
+	if (!principal) {
+		return jsonError(
+			"Unauthorized. Present Authorization: Bearer <token>.",
+			401,
+		);
+	}
+	return c.json({
+		authenticated: true,
+		kind: principal.kind,
+		user: principal.user,
+		tokenId: principal.tokenId ?? null,
+		sessionId: principal.sessionId ?? null,
+		label: principal.label ?? null,
+		contributionAuthRequired: isContributionAuthRequired(c.env),
+	});
+});
+
+app.post("/auth/logout", async (c) => {
+	const principal = await resolvePrincipal(c.req.raw, c.env);
+	if (!principal) {
+		return jsonError("Unauthorized.", 401);
+	}
+	if (principal.kind === "session" && principal.sessionId) {
+		await revokeSession(principal.sessionId, c.env);
+	}
+	return c.json({ ok: true });
+});
+
+app.get("/auth/tokens", async (c) => {
+	const principal = await resolvePrincipal(c.req.raw, c.env);
+	if (!principal || principal.kind !== "session") {
+		return jsonError(
+			"Sign in with GitHub and present the session Bearer token to list API tokens.",
+			401,
+		);
+	}
+	const tokens = await listApiTokens(principal.user.id, c.env);
+	return c.json({ tokens });
+});
+
+app.post("/auth/tokens", async (c) => {
+	const principal = await resolvePrincipal(c.req.raw, c.env);
+	if (!principal || principal.kind !== "session") {
+		return jsonError(
+			"Sign in with GitHub and present the session Bearer token to create an API token.",
+			401,
+		);
+	}
+
+	let label = "Agent token";
+	try {
+		const body = (await c.req.json()) as { label?: string };
+		if (typeof body.label === "string" && body.label.trim()) {
+			label = body.label.trim().slice(0, 80);
+		}
+	} catch {
+		// empty body is fine
+	}
+
+	const { token, record } = await createApiToken(principal.user, label, c.env);
+	return c.json({
+		token,
+		tokenId: record.tokenId,
+		tokenPrefix: record.tokenPrefix,
+		label: record.label,
+		createdAt: record.createdAt,
+		warning:
+			"Store this token securely. It is shown once and must be sent as Authorization: Bearer <token> for agent contributions.",
+	});
+});
+
+app.delete("/auth/tokens/:tokenId", async (c) => {
+	const principal = await resolvePrincipal(c.req.raw, c.env);
+	if (!principal || principal.kind !== "session") {
+		return jsonError(
+			"Sign in with GitHub and present the session Bearer token to revoke API tokens.",
+			401,
+		);
+	}
+	const tokenId = c.req.param("tokenId");
+	const ok = await revokeApiToken(tokenId, principal.user.id, c.env);
+	if (!ok) return jsonError("Token not found.", 404);
+	return c.json({ ok: true });
+});
+
+/** Local/dev only: mint an API token without GitHub when ALLOW_DEV_AUTH=1. */
+app.post("/auth/dev/token", async (c) => {
+	if (!isDevAuthAllowed(c.env)) {
+		return jsonError("Dev auth bootstrap is disabled.", 403);
+	}
+	let label = "Dev token";
+	let login = "dev-user";
+	try {
+		const body = (await c.req.json()) as { label?: string; login?: string };
+		if (typeof body.label === "string" && body.label.trim()) {
+			label = body.label.trim().slice(0, 80);
+		}
+		if (typeof body.login === "string" && body.login.trim()) {
+			login = body.login.trim().slice(0, 40);
+		}
+	} catch {
+		// empty body is fine
+	}
+
+	const user = {
+		id: 0,
+		login,
+		name: "Dev User",
+		avatarUrl: null,
+	};
+	const { token, record } = await createApiToken(user, label, c.env);
+	return c.json({
+		token,
+		...publicTokenView(record),
+		warning: "Dev-only token. Do not enable ALLOW_DEV_AUTH in production.",
+	});
+});
 
 app.get("/problems/:problemId", async (c) => {
 	const problemId = c.req.param("problemId");

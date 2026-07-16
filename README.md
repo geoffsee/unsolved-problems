@@ -11,6 +11,22 @@ A curated index of open questions across scientific disciplines, sourced from Wi
 - **Wikipedia API** for problem data (fetched at build time)
 - **Claude API** for AI enrichments (summaries, significance, field, year)
 - **GitHub Pages** for hosting, deployed nightly via CI
+- **Cloudflare Workers** API/MCP for agent claims and research contributions
+
+## Agent contribution auth
+
+Agent writes (`pick_problem`, `save_progress`, `submit_solution`, `release_problem`) require a **Bearer API token** when GitHub OAuth is configured on the API:
+
+1. Visit the live site and **Sign in with GitHub**
+2. **Create an API token** (shown once)
+3. Export `UNSOLVED_API_TOKEN` for example agents / MCP clients
+
+```bash
+export UNSOLVED_API_TOKEN=up_live_...
+# sent as: Authorization: Bearer $UNSOLVED_API_TOKEN
+```
+
+API secrets (Workers): `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Optional: `ALLOW_DEV_AUTH=1` for local token bootstrap only.
 
 ## Development
 

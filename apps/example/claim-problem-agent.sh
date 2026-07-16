@@ -9,6 +9,12 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ -z "${UNSOLVED_API_TOKEN:-}" ]]; then
+  echo "UNSOLVED_API_TOKEN is required." >&2
+  echo "Sign in with GitHub at https://geoffsee.github.io/unsolved-problems, create an API token, and export it." >&2
+  exit 1
+fi
+
 case "${PROVIDER}" in
   openai)
     if [[ -z "${OPENAI_API_KEY:-}" ]]; then
@@ -75,6 +81,7 @@ fetch_shortlist() {
     -H "content-type: application/json" \
     -H "accept: application/json, text/event-stream" \
     -H "mcp-protocol-version: 2025-03-26" \
+    -H "authorization: Bearer ${UNSOLVED_API_TOKEN}" \
     --data '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_problems","arguments":{"limit":8,"status":"available"}}}'
 }
 

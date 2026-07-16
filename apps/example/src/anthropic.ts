@@ -252,6 +252,11 @@ async function main() {
 					url: MCP_URL,
 					headers: {
 						Accept: "application/json, text/event-stream",
+						...(process.env.UNSOLVED_API_TOKEN
+							? {
+									Authorization: `Bearer ${process.env.UNSOLVED_API_TOKEN}`,
+								}
+							: {}),
 					},
 				},
 			},

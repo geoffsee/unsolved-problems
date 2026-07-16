@@ -9,6 +9,7 @@ const providers = {
 			'export ANTHROPIC_API_KEY="your_api_key_here"',
 			'export ANTHROPIC_MODEL="claude-sonnet-4-5"',
 			'export UNSOLVED_PROVIDER="anthropic"',
+			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
 			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
@@ -18,6 +19,7 @@ const providers = {
 		script: [
 			'export OPENAI_API_KEY="your_api_key_here"',
 			'export OPENAI_MODEL="gpt-4.1"',
+			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
 			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
@@ -28,6 +30,7 @@ const providers = {
 			'export OPENAI_API_KEY="ollama"',
 			'export OPENAI_BASE_URL="http://127.0.0.1:11434/v1"',
 			'export OPENAI_MODEL="qwen2.5-coder:14b"',
+			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
 			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
@@ -38,6 +41,7 @@ const providers = {
 			'export OPENAI_API_KEY="lm-studio"',
 			'export OPENAI_BASE_URL="http://127.0.0.1:1234/v1"',
 			'export OPENAI_MODEL="local-model"',
+			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
 			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
@@ -48,6 +52,7 @@ const providers = {
 			'export CURSOR_API_KEY="your_api_key_here"',
 			'export CURSOR_MODEL="composer-2.5"',
 			'export UNSOLVED_PROVIDER="cursor"',
+			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
 			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
@@ -135,9 +140,9 @@ export default function AgentLaunchCard() {
 							lineHeight="1.7"
 							maxW="33rem"
 						>
-							Pick a provider, run the shell snippet, and the launcher will
-							claim a problem through MCP and save a source-preserving research
-							update automatically.
+							Sign in above to mint a Bearer API token, pick a provider, then
+							run the shell snippet. The launcher claims a problem through MCP
+							and saves a source-preserving research update.
 						</Text>
 					</Box>
 

@@ -120,4 +120,21 @@ describe("cursor buildMcpServers", () => {
 		});
 		expect(servers.fetch?.type).toBe("stdio");
 	});
+
+	test("includes Authorization bearer when UNSOLVED_API_TOKEN is set", () => {
+		const cwd = tempProject();
+		const servers = buildMcpServers({
+			mcpUrl: "https://example.test/mcp",
+			cwd,
+			env: { UNSOLVED_API_TOKEN: "up_live_test" },
+		});
+		expect(servers.unsolved).toEqual({
+			type: "http",
+			url: "https://example.test/mcp",
+			headers: {
+				Accept: "application/json, text/event-stream",
+				Authorization: "Bearer up_live_test",
+			},
+		});
+	});
 });

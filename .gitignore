@@ -33,3 +33,4 @@ package-lock.json
 /site-snapshot.md
 apps/api/data/
 /.env.*
+.wrangler

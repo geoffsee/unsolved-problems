@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resetLocalAuthStateForTests } from "./auth";
 import app, { makeProblemId, resetLocalRuntimeStateForTests } from "./main";
 
 const SAMPLE_PROBLEMS = {
@@ -59,6 +60,8 @@ const CHEMISTRY_ID = makeProblemId(
 let tempDir: string;
 let originalFetch: typeof fetch;
 let previousStatePath: string | undefined;
+let previousAuthPath: string | undefined;
+let previousAuthDisabled: string | undefined;
 
 function emptyQueueFile(path: string) {
 	writeFileSync(
@@ -123,10 +126,25 @@ async function callTool(name: string, args: Record<string, unknown> = {}) {
 beforeEach(() => {
 	tempDir = mkdtempSync(join(tmpdir(), "unsolved-api-"));
 	const statePath = join(tempDir, "agent-queue.json");
+	const authPath = join(tempDir, "auth-store.json");
 	emptyQueueFile(statePath);
+	writeFileSync(
+		authPath,
+		JSON.stringify({
+			sessionsById: {},
+			tokensById: {},
+			lookupByHash: {},
+		}),
+	);
 	previousStatePath = process.env.UNSOLVED_STATE_PATH;
+	previousAuthPath = process.env.UNSOLVED_AUTH_PATH;
+	previousAuthDisabled = process.env.AUTH_DISABLED;
 	process.env.UNSOLVED_STATE_PATH = statePath;
+	process.env.UNSOLVED_AUTH_PATH = authPath;
+	// Existing MCP tool tests focus on queue behavior, not OAuth.
+	process.env.AUTH_DISABLED = "1";
 	resetLocalRuntimeStateForTests();
+	resetLocalAuthStateForTests();
 	installFetchMock();
 });
 
@@ -137,7 +155,18 @@ afterEach(() => {
 	} else {
 		process.env.UNSOLVED_STATE_PATH = previousStatePath;
 	}
+	if (previousAuthPath === undefined) {
+		delete process.env.UNSOLVED_AUTH_PATH;
+	} else {
+		process.env.UNSOLVED_AUTH_PATH = previousAuthPath;
+	}
+	if (previousAuthDisabled === undefined) {
+		delete process.env.AUTH_DISABLED;
+	} else {
+		process.env.AUTH_DISABLED = previousAuthDisabled;
+	}
 	resetLocalRuntimeStateForTests();
+	resetLocalAuthStateForTests();
 	rmSync(tempDir, { recursive: true, force: true });
 });
 

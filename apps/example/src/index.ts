@@ -250,10 +250,20 @@ async function main() {
 		userGoal: USER_GOAL || null,
 	});
 
+	const apiToken = process.env.UNSOLVED_API_TOKEN?.trim();
 	const mcpServer = new MCPServerStreamableHttp({
 		name: "unsolved-problems",
 		url: MCP_URL,
 		cacheToolsList: true,
+		...(apiToken
+			? {
+					requestInit: {
+						headers: {
+							Authorization: `Bearer ${apiToken}`,
+						},
+					},
+				}
+			: {}),
 	});
 
 	log.info("connecting to mcp server", { mcpUrl: MCP_URL });

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useData } from "vike-react/useData";
 import AboutModal from "../../components/AboutModal";
 import AgentLaunchCard from "../../components/AgentLaunchCard";
+import AuthPanel from "../../components/AuthPanel";
 import CaseFeed from "../../components/CaseFeed";
 import CategoryGrid from "../../components/CategoryGrid";
 import ContributionsFeed, {
@@ -283,6 +284,7 @@ export default function Page() {
 							loaded={loadedCategories}
 							onSelect={selectCategory}
 						/>
+						<AuthPanel />
 						<AgentLaunchCard />
 					</>
 				) : activeType === "news" ? (

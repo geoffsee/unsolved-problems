@@ -13,6 +13,10 @@
 			{
 				"name": "PROBLEM_QUEUE",
 				"class_name": "ProblemQueueDurableObject"
+			},
+			{
+				"name": "AUTH_STORE",
+				"class_name": "AuthStoreDurableObject"
 			}
 		]
 	},
@@ -20,13 +24,10 @@
 		{
 			"tag": "v1",
 			"new_sqlite_classes": ["ProblemQueueDurableObject"]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["AuthStoreDurableObject"]
 		}
-	],
-	"env": {
-		"production": {
-			"vars": {
-				"PAGES_ORIGIN": "https://geoffsee.github.io/unsolved-problems"
-			}
-		}
-	}
+	]
 }
