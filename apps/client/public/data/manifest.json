@@ -140,8 +140,7 @@
       "type": "cases",
       "presentation": {
         "emoji": "🧭",
-        "color": "#6f8f72",
-        "description": "Official public listings"
+        "color": "#6f8f72"
       },
       "source": {
         "type": "fbi-vicap",
@@ -157,8 +156,7 @@
       "type": "cases",
       "presentation": {
         "emoji": "🕯️",
-        "color": "#8c6d66",
-        "description": "Official public listings"
+        "color": "#8c6d66"
       },
       "source": {
         "type": "fbi-vicap",
