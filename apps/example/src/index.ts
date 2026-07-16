@@ -1,5 +1,8 @@
 import { Agent, MCPServerStreamableHttp, run } from "@openai/agents";
 import { z } from "zod";
+import { createLogger, truncate, withToolLogging } from "./logger";
+
+const log = createLogger({ agent: "openai" });
 
 const MCP_URL =
 	process.env.UNSOLVED_MCP_URL ||
@@ -91,12 +94,18 @@ async function listAvailableProblemIds(
 	mcpServer: MCPServerStreamableHttp,
 	limit: number,
 ) {
-	const listResult = await mcpServer.callTool("list_problems", {
-		limit,
-		status: "available",
-	});
+	const args = { limit, status: "available" };
+	const listResult = await withToolLogging(log, "list_problems", args, () =>
+		mcpServer.callTool("list_problems", args),
+	);
 	const candidatesText = getText(listResult);
 	const candidateIds = parseCandidateIds(candidatesText);
+	log.info("listed available problems", {
+		limit,
+		candidateCount: candidateIds.length,
+		candidateIds,
+		candidatesText: truncate(candidatesText),
+	});
 	return { candidatesText, candidateIds };
 }
 
@@ -110,6 +119,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 			);
 		}
 
+		log.info("using specific problem", { problemId: SPECIFIC_PROBLEM_ID });
 		return {
 			chosenProblemId: SPECIFIC_PROBLEM_ID,
 			reason: "Selected explicitly by the launcher.",
@@ -128,11 +138,20 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 	if (PICK_MODE === "random") {
 		const chosenProblemId =
 			candidateIds[Math.floor(Math.random() * candidateIds.length)];
+		log.info("selected random problem", {
+			problemId: chosenProblemId,
+			poolSize: candidateIds.length,
+		});
 		return {
 			chosenProblemId,
 			reason: "Selected randomly from the live available shortlist.",
 		};
 	}
+
+	log.info("running problem selector agent", {
+		candidateCount: candidateIds.length,
+		userBrief: truncate(userBrief || null),
+	});
 
 	const selector = new Agent({
 		name: "Problem Selector",
@@ -167,6 +186,11 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 		throw new Error(`Agent selected an invalid problemId: ${chosenProblemId}`);
 	}
 
+	log.info("selector chose problem", {
+		problemId: chosenProblemId,
+		reason: selection.finalOutput.reason,
+	});
+
 	return {
 		chosenProblemId,
 		reason: selection.finalOutput.reason,
@@ -178,24 +202,39 @@ async function main() {
 		throw new Error("OPENAI_API_KEY is required.");
 	}
 
+	log.info("starting openai agent", {
+		mcpUrl: MCP_URL,
+		model: MODEL,
+		agentId: AGENT_ID,
+		pickMode: PICK_MODE,
+		problemId: SPECIFIC_PROBLEM_ID,
+		userGoal: USER_GOAL || null,
+	});
+
 	const mcpServer = new MCPServerStreamableHttp({
 		name: "unsolved-problems",
 		url: MCP_URL,
 		cacheToolsList: true,
 	});
 
+	log.info("connecting to mcp server", { mcpUrl: MCP_URL });
 	await mcpServer.connect();
+	log.info("mcp server connected");
 
 	try {
 		const userBrief = buildUserBrief();
 		const { chosenProblemId, reason } = await chooseProblemId(mcpServer);
 
-		await mcpServer.callTool("pick_problem", {
+		const pickArgs = {
 			agentId: AGENT_ID,
 			problemId: chosenProblemId,
 			leaseMinutes: LEASE_MINUTES,
-		});
+		};
+		await withToolLogging(log, "pick_problem", pickArgs, () =>
+			mcpServer.callTool("pick_problem", pickArgs),
+		);
 
+		log.info("reading queue resource");
 		const queueResource = await mcpServer.readResource("unsolved://queue");
 		const queueJson = queueResource.contents.find(
 			(item) => "text" in item,
@@ -221,6 +260,13 @@ async function main() {
 			);
 		}
 
+		log.info("claim confirmed", {
+			claimId: claim.claimId,
+			problemId: claim.problemId,
+			status: claim.status,
+		});
+
+		log.info("reading problem resource", { problemId: chosenProblemId });
 		const problemResource = await mcpServer.readResource(
 			`unsolved://problem/${chosenProblemId}`,
 		);
@@ -241,6 +287,15 @@ async function main() {
 					`${index + 1}. [${entry.kind}] ${entry.title ?? "Untitled"} by ${entry.agentId}: ${entry.content}`,
 			)
 			.join("\n");
+
+		log.info("starting research kickoff agent", {
+			problemId: problem.id,
+			category: problem.category,
+			section: problem.section,
+			priorResearchCount: problem.researchEntries?.length ?? 0,
+			problem: truncate(problem.text),
+			userBrief: truncate(userBrief || null),
+		});
 
 		const researcher = new Agent({
 			name: "Research Kickoff",
@@ -275,41 +330,53 @@ async function main() {
 		);
 
 		const checkpoint = kickoff.finalOutput;
+		log.info("research kickoff complete", {
+			checkpoint: truncate(checkpoint),
+		});
+
 		if (checkpoint?.content.trim()) {
-			await mcpServer.callTool("save_progress", {
+			const saveArgs = {
 				problemId: chosenProblemId,
 				agentId: AGENT_ID,
 				kind: checkpoint.kind,
 				title: checkpoint.title.trim(),
 				content: checkpoint.content.trim(),
 				...(checkpoint.sourceUrl ? { artifactUrl: checkpoint.sourceUrl } : {}),
-			});
+			};
+			await withToolLogging(log, "save_progress", saveArgs, () =>
+				mcpServer.callTool("save_progress", saveArgs),
+			);
+		} else {
+			log.warn("skipping save_progress; empty research checkpoint");
 		}
 
-		console.log(
-			JSON.stringify(
-				{
-					mcpUrl: MCP_URL,
-					model: MODEL,
-					agentId: AGENT_ID,
-					claimId: claim.claimId,
-					problemId: problem.id,
-					category: problem.category,
-					section: problem.section,
-					problem: problem.text,
-					reason,
-					pickMode: PICK_MODE,
-					userGoal: USER_GOAL || null,
-					priorResearchCount: problem.researchEntries?.length ?? 0,
-					researchUpdate: checkpoint ?? null,
-				},
-				null,
-				2,
-			),
-		);
+		const summary = {
+			mcpUrl: MCP_URL,
+			model: MODEL,
+			agentId: AGENT_ID,
+			claimId: claim.claimId,
+			problemId: problem.id,
+			category: problem.category,
+			section: problem.section,
+			problem: problem.text,
+			reason,
+			pickMode: PICK_MODE,
+			userGoal: USER_GOAL || null,
+			priorResearchCount: problem.researchEntries?.length ?? 0,
+			researchUpdate: checkpoint ?? null,
+		};
+
+		log.info("run complete", summary);
+		console.log(JSON.stringify(summary, null, 2));
 	} finally {
+		log.info("closing mcp server");
 		await mcpServer.close();
 	}
 }
 
-await main();
+try {
+	await main();
+} catch (error) {
+	log.error("openai agent failed", { err: error });
+	throw error;
+}

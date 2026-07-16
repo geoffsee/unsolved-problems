@@ -12,7 +12,8 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"typecheck": "bun run --workspaces typecheck",
-		"test": "bun test --coverage"
+		"test": "bun test --coverage",
+		"contributor:dev": "cd apps/example && bun --env-file=../../.env.morning-contributor run start:anthropic"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.4"

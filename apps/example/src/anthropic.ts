@@ -1,5 +1,17 @@
 import { existsSync } from "node:fs";
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import {
+	type HookCallback,
+	query,
+	type SDKMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import {
+	createLogger,
+	type Logger,
+	summarizeContentBlocks,
+	truncate,
+} from "./logger";
+
+const log = createLogger({ agent: "anthropic" });
 
 const MCP_URL =
 	process.env.UNSOLVED_MCP_URL ||
@@ -105,16 +117,202 @@ function buildPrompt() {
 	].join("\n");
 }
 
+function logSdkMessage(logger: Logger, message: SDKMessage) {
+	switch (message.type) {
+		case "system": {
+			if (message.subtype === "init") {
+				logger.info("session initialized", {
+					sessionId: message.session_id,
+					model: message.model,
+					cwd: message.cwd,
+					permissionMode: message.permissionMode,
+					tools: message.tools,
+					mcpServers: message.mcp_servers,
+					claudeCodeVersion: message.claude_code_version,
+					apiKeySource: message.apiKeySource,
+				});
+				return;
+			}
+
+			if (message.subtype === "api_retry") {
+				logger.warn("api retry", {
+					attempt: message.attempt,
+					maxRetries: message.max_retries,
+					retryDelayMs: message.retry_delay_ms,
+					errorStatus: message.error_status,
+					error: message.error,
+				});
+				return;
+			}
+
+			logger.debug("system event", {
+				subtype: message.subtype,
+				payload: truncate(message),
+			});
+			return;
+		}
+
+		case "assistant": {
+			logger.info("assistant turn", {
+				sessionId: message.session_id,
+				parentToolUseId: message.parent_tool_use_id,
+				error: message.error,
+				stopReason: message.message.stop_reason,
+				usage: message.message.usage,
+				content: summarizeContentBlocks(message.message.content),
+			});
+			return;
+		}
+
+		case "user": {
+			const content =
+				message.message &&
+				typeof message.message === "object" &&
+				"content" in message.message
+					? message.message.content
+					: message.message;
+
+			logger.info("user / tool result", {
+				sessionId: message.session_id,
+				parentToolUseId: message.parent_tool_use_id,
+				isSynthetic: message.isSynthetic,
+				toolUseResult: truncate(message.tool_use_result),
+				content: summarizeContentBlocks(content),
+			});
+			return;
+		}
+
+		case "tool_progress": {
+			logger.debug("tool progress", {
+				toolUseId: message.tool_use_id,
+				toolName: message.tool_name,
+				elapsedSeconds: message.elapsed_time_seconds,
+				parentToolUseId: message.parent_tool_use_id,
+			});
+			return;
+		}
+
+		case "tool_use_summary": {
+			logger.info("tool use summary", {
+				summary: truncate(message.summary),
+				toolUseIds: message.preceding_tool_use_ids,
+			});
+			return;
+		}
+
+		case "result": {
+			if (message.subtype === "success") {
+				logger.info("agent finished successfully", {
+					sessionId: message.session_id,
+					numTurns: message.num_turns,
+					durationMs: message.duration_ms,
+					durationApiMs: message.duration_api_ms,
+					totalCostUsd: message.total_cost_usd,
+					usage: message.usage,
+					stopReason: message.stop_reason,
+					permissionDenials: message.permission_denials,
+					result: truncate(message.result),
+				});
+			} else {
+				logger.error("agent finished with error", {
+					sessionId: message.session_id,
+					subtype: message.subtype,
+					numTurns: message.num_turns,
+					durationMs: message.duration_ms,
+					totalCostUsd: message.total_cost_usd,
+					errors: message.errors,
+					permissionDenials: message.permission_denials,
+				});
+			}
+			return;
+		}
+
+		default: {
+			logger.debug("sdk message", {
+				type: message.type,
+				payload: truncate(message),
+			});
+		}
+	}
+}
+
+function buildLoggingHooks(logger: Logger) {
+	const logPreToolUse: HookCallback = async (input) => {
+		if (input.hook_event_name !== "PreToolUse") {
+			return { continue: true };
+		}
+
+		logger.info("tool starting", {
+			toolUseId: input.tool_use_id,
+			toolName: input.tool_name,
+			input: truncate(input.tool_input),
+		});
+		return { continue: true };
+	};
+
+	const logPostToolUse: HookCallback = async (input) => {
+		if (input.hook_event_name !== "PostToolUse") {
+			return { continue: true };
+		}
+
+		logger.info("tool finished", {
+			toolUseId: input.tool_use_id,
+			toolName: input.tool_name,
+			durationMs: input.duration_ms,
+			input: truncate(input.tool_input),
+			response: truncate(input.tool_response),
+		});
+		return { continue: true };
+	};
+
+	const logPostToolUseFailure: HookCallback = async (input) => {
+		if (input.hook_event_name !== "PostToolUseFailure") {
+			return { continue: true };
+		}
+
+		logger.error("tool failed", {
+			toolUseId: input.tool_use_id,
+			toolName: input.tool_name,
+			durationMs: input.duration_ms,
+			isInterrupt: input.is_interrupt,
+			input: truncate(input.tool_input),
+			error: input.error,
+		});
+		return { continue: true };
+	};
+
+	return {
+		PreToolUse: [{ hooks: [logPreToolUse] }],
+		PostToolUse: [{ hooks: [logPostToolUse] }],
+		PostToolUseFailure: [{ hooks: [logPostToolUseFailure] }],
+	};
+}
+
 async function main() {
 	if (!process.env.ANTHROPIC_API_KEY) {
 		throw new Error("ANTHROPIC_API_KEY is required.");
 	}
 
+	const prompt = buildPrompt();
+
+	log.info("starting anthropic agent", {
+		mcpUrl: MCP_URL,
+		model: MODEL,
+		agentId: AGENT_ID,
+		pickMode: PICK_MODE,
+		problemId: SPECIFIC_PROBLEM_ID,
+		userGoal: USER_GOAL || null,
+		hasProjectMcpConfig: HAS_PROJECT_MCP_CONFIG,
+		allowedTools: ALLOWED_MCP_TOOLS,
+		promptChars: prompt.length,
+	});
+	log.debug("agent prompt", { prompt: truncate(prompt) });
+
 	let finalResult: string | null = null;
 	let sessionId: string | null = null;
 
 	for await (const message of query({
-		prompt: buildPrompt(),
+		prompt,
 		options: {
 			model: MODEL,
 			systemPrompt:
@@ -144,8 +342,11 @@ async function main() {
 			permissionMode: "dontAsk",
 			maxTurns: 16,
 			settingSources: HAS_PROJECT_MCP_CONFIG ? ["project"] : [],
+			hooks: buildLoggingHooks(log),
 		},
 	})) {
+		logSdkMessage(log, message);
+
 		if (message.type === "system" && message.subtype === "init") {
 			sessionId = message.session_id;
 		}
@@ -162,22 +363,24 @@ async function main() {
 		}
 	}
 
-	console.log(
-		JSON.stringify(
-			{
-				mcpUrl: MCP_URL,
-				model: MODEL,
-				agentId: AGENT_ID,
-				pickMode: PICK_MODE,
-				problemId: SPECIFIC_PROBLEM_ID,
-				userGoal: USER_GOAL || null,
-				sessionId,
-				result: finalResult,
-			},
-			null,
-			2,
-		),
-	);
+	const summary = {
+		mcpUrl: MCP_URL,
+		model: MODEL,
+		agentId: AGENT_ID,
+		pickMode: PICK_MODE,
+		problemId: SPECIFIC_PROBLEM_ID,
+		userGoal: USER_GOAL || null,
+		sessionId,
+		result: finalResult,
+	};
+
+	log.info("run complete", summary);
+	console.log(JSON.stringify(summary, null, 2));
 }
 
-await main();
+try {
+	await main();
+} catch (error) {
+	log.error("anthropic agent failed", { err: error });
+	throw error;
+}
