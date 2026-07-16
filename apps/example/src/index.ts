@@ -92,7 +92,7 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 
 	const { candidatesText, candidateIds } = await listAvailableProblemIds(
 		mcpServer,
-		PICK_MODE === "random" ? 25 : 5,
+		PICK_MODE === "random" ? 100 : 5,
 	);
 
 	if (PICK_MODE === "random") {

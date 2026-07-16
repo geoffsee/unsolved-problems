@@ -9,6 +9,7 @@ import {
 	truncate,
 } from "./logger";
 import { buildCatalogPrompt, buildUserBrief } from "./prompt";
+import { resolveRuntimePick } from "./resolvePick";
 import {
 	extractProblemIdFromUnknown,
 	saveUsageArtifact,
@@ -32,12 +33,15 @@ const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
 const API_KEY = process.env.CURSOR_API_KEY;
 const CWD = process.env.CURSOR_CWD || process.cwd();
 
-function buildPrompt() {
+function buildPrompt(input: {
+	pickMode: string;
+	specificProblemId?: string | null;
+}) {
 	return buildCatalogPrompt({
 		agentId: AGENT_ID,
 		leaseMinutes: LEASE_MINUTES,
-		pickMode: PICK_MODE,
-		specificProblemId: SPECIFIC_PROBLEM_ID,
+		pickMode: input.pickMode,
+		specificProblemId: input.specificProblemId,
 		userBrief: buildUserBrief({
 			goal: USER_GOAL,
 			background: USER_BACKGROUND,
@@ -53,7 +57,6 @@ function logSdkMessage(logger: Logger, message: SDKMessage) {
 		case "system": {
 			logger.info("session initialized", {
 				model: message.model,
-				runId: message.run_id,
 			});
 			return;
 		}
@@ -143,7 +146,13 @@ async function main() {
 		throw new Error("CURSOR_API_KEY is required.");
 	}
 
-	const prompt = buildPrompt();
+	const resolvedPick = await resolveRuntimePick({
+		pickMode: PICK_MODE,
+		specificProblemId: SPECIFIC_PROBLEM_ID,
+		mcpUrl: MCP_URL,
+		limit: 100,
+	});
+	const prompt = buildPrompt(resolvedPick);
 	const mcpServers = buildMcpServers({
 		mcpUrl: MCP_URL,
 		cwd: CWD,
@@ -154,7 +163,8 @@ async function main() {
 		model: MODEL,
 		agentId: AGENT_ID,
 		pickMode: PICK_MODE,
-		problemId: SPECIFIC_PROBLEM_ID,
+		problemId: resolvedPick.specificProblemId,
+		poolSize: resolvedPick.poolSize ?? null,
 		userGoal: USER_GOAL || null,
 		mcpServerNames: Object.keys(mcpServers),
 	});
@@ -173,12 +183,9 @@ async function main() {
 	});
 
 	const run = await agent.send(prompt);
-	log.info("run started", {
-		cursorAgentId: agent.agentId,
-		runId: run.id,
-	});
+	log.info("run started");
 
-	let claimedProblemId: string | null = SPECIFIC_PROBLEM_ID;
+	let claimedProblemId: string | null = resolvedPick.specificProblemId;
 
 	for await (const event of run.stream()) {
 		logSdkMessage(log, event);
@@ -205,8 +212,6 @@ async function main() {
 	const result = await run.wait();
 	if (result.status === "error") {
 		log.error("run failed", {
-			cursorAgentId: agent.agentId,
-			runId: result.id,
 			status: result.status,
 			error: result.error,
 			durationMs: result.durationMs,
@@ -234,8 +239,6 @@ async function main() {
 				durationMs: result.durationMs ?? null,
 			},
 			details: {
-				cursorAgentId: agent.agentId,
-				runId: result.id,
 				usage: result.usage,
 			},
 		});
@@ -249,8 +252,6 @@ async function main() {
 	const summary = {
 		model: MODEL,
 		agentId: AGENT_ID,
-		cursorAgentId: agent.agentId,
-		runId: result.id,
 		pickMode: PICK_MODE,
 		problemId: claimedProblemId,
 		status: result.status,

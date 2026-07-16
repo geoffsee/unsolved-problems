@@ -13,6 +13,7 @@ import {
 	truncate,
 } from "./logger";
 import { buildCatalogPrompt, buildUserBrief } from "./prompt";
+import { resolveRuntimePick } from "./resolvePick";
 import {
 	extractProblemIdFromUnknown,
 	saveUsageArtifact,
@@ -53,12 +54,15 @@ export const ALLOWED_MCP_TOOLS = [
 	"mcp__playwright",
 ];
 
-function buildPrompt() {
+function buildPrompt(input: {
+	pickMode: string;
+	specificProblemId?: string | null;
+}) {
 	return buildCatalogPrompt({
 		agentId: AGENT_ID,
 		leaseMinutes: LEASE_MINUTES,
-		pickMode: PICK_MODE,
-		specificProblemId: SPECIFIC_PROBLEM_ID,
+		pickMode: input.pickMode,
+		specificProblemId: input.specificProblemId,
 		userBrief: buildUserBrief({
 			goal: USER_GOAL,
 			background: USER_BACKGROUND,
@@ -74,7 +78,6 @@ function logSdkMessage(logger: Logger, message: SDKMessage) {
 		case "system": {
 			if (message.subtype === "init") {
 				logger.info("session initialized", {
-					sessionId: message.session_id,
 					model: message.model,
 				});
 				return;
@@ -210,21 +213,27 @@ async function main() {
 		throw new Error("ANTHROPIC_API_KEY is required.");
 	}
 
-	const prompt = buildPrompt();
+	const resolvedPick = await resolveRuntimePick({
+		pickMode: PICK_MODE,
+		specificProblemId: SPECIFIC_PROBLEM_ID,
+		mcpUrl: MCP_URL,
+		limit: 100,
+	});
+	const prompt = buildPrompt(resolvedPick);
 
 	log.info("starting anthropic agent", {
 		mcpUrl: MCP_URL,
 		model: MODEL,
 		agentId: AGENT_ID,
 		pickMode: PICK_MODE,
-		problemId: SPECIFIC_PROBLEM_ID,
+		problemId: resolvedPick.specificProblemId,
+		poolSize: resolvedPick.poolSize ?? null,
 		userGoal: USER_GOAL || null,
 	});
 	log.debug("agent prompt", { promptChars: prompt.length });
 
 	let finalResult: string | null = null;
-	let sessionId: string | null = null;
-	let claimedProblemId: string | null = SPECIFIC_PROBLEM_ID;
+	let claimedProblemId: string | null = resolvedPick.specificProblemId;
 	let usage: Record<string, unknown> | null = null;
 	let modelUsage: Record<string, unknown> | null = null;
 	let totalCostUsd: number | null = null;
@@ -265,10 +274,6 @@ async function main() {
 		},
 	})) {
 		logSdkMessage(log, message);
-
-		if (message.type === "system" && message.subtype === "init") {
-			sessionId = message.session_id;
-		}
 
 		if (message.type === "assistant") {
 			for (const block of message.message.content) {
@@ -337,7 +342,6 @@ async function main() {
 		agentId: AGENT_ID,
 		pickMode: PICK_MODE,
 		problemId: claimedProblemId,
-		sessionId,
 		totalCostUsd,
 		numTurns,
 		result: finalResult,
