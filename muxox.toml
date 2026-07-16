@@ -1,0 +1,20 @@
+[[service]]
+name = "api"
+cmd = "PORT=3030 bun run actions:server"
+cwd = "."
+log_capacity = 5000
+interactive = false
+
+[[service]]
+name = "ui"
+cmd = "if [ ! -f dist/client/index.html ]; then VITE_BASE_PATH=/ bun run build; fi; PORT=3031 bun run start"
+cwd = "apps/client"
+log_capacity = 5000
+interactive = false
+
+[[service]]
+name = "muxox-web-proxy"
+cmd = "bun apps/action-server/src/muxox-web-proxy.ts 3032 3032"
+cwd = "."
+log_capacity = 250
+interactive = false

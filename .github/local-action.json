@@ -1,0 +1,13 @@
+{
+	"actions": {
+		"./.github/actions/nightly": {
+			"entrypoint": "src/main.ts"
+		},
+		"./.github/actions/docker-smoke-test": {
+			"entrypoint": "src/main.ts"
+		},
+		"./.github/actions/morning-contribution": {
+			"entrypoint": "src/main.ts"
+		}
+	}
+}

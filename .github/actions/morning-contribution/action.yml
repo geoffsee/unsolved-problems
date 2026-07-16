@@ -1,0 +1,21 @@
+name: Morning agent contribution
+description: Installs the contributor and submits one morning research contribution.
+inputs:
+  anthropic-api-key:
+    description: Anthropic API key
+    required: true
+  api-token:
+    description: Open Questions contributor token
+    required: true
+  openalex-mailto:
+    description: OpenAlex contact email
+    required: false
+  openalex-api-key:
+    description: OpenAlex API key
+    required: false
+  searxng-url:
+    description: SearXNG endpoint
+    required: false
+runs:
+  using: node24
+  main: dist/index.js

@@ -14,7 +14,8 @@
 		"typecheck": "tsc --noEmit",
 		"test": "bun test",
 		"preview": "vike build && vike preview",
-		"prod": "vike build && node ./dist/server/index.mjs"
+		"start": "bun server.ts",
+		"prod": "vike build && bun run start"
 	},
 	"dependencies": {
 		"@universal-middleware/core": "^0.4.17",

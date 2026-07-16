@@ -1,0 +1,21 @@
+services:
+  actions:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/geoffsee/open-questions
+    init: true
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+      - "3031:3031"
+      - "3032:3032"
+    env_file:
+      - path: .env.actions
+        required: false
+    volumes:
+      - ./.github:/workspace/.github:ro
+      - action-data:/data
+
+volumes:
+  action-data:

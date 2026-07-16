@@ -1,0 +1,5 @@
+name: Docker build and smoke test
+description: Builds the unified image and verifies its API, client, and Muxox UI.
+runs:
+  using: node24
+  main: dist/index.js

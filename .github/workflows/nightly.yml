@@ -28,12 +28,6 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
-        run: bun install
-
-      - name: Install Playwright browser
-        run: bunx playwright install chromium
-
       - name: Restore data cache
         uses: actions/cache/restore@v4
         with:
@@ -46,27 +40,11 @@ jobs:
           key: data-${{ github.run_id }}
           restore-keys: data-
 
-      - name: Fetch latest problems from Wikipedia
-        run: |
-          if [ -f public/data/problems.json ]; then
-            echo "Using cached problems.json"
-          else
-            bun run fetch-data
-          fi
-
-      - name: Fetch frontier research news
-        run: bun run fetch-news
+      - name: Refresh data and build client
+        uses: ./.github/actions/nightly
         env:
           PERIGON_API_KEY: ${{ secrets.PERIGON_API_KEY }}
-
-      - name: Fetch FBI ViCAP case listings
-        run: bun run fetch-cases
-
-      - name: Enrich problems with AI
-        run: bun run enrich-data
-        env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        continue-on-error: true
 
       - name: Save data cache
         uses: actions/cache/save@v4
@@ -78,9 +56,6 @@ jobs:
             apps/client/public/data/cases.json
             apps/client/public/data/case-history
           key: data-${{ github.run_id }}
-
-      - name: Build
-        run: bun run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -39,19 +39,34 @@ bun run fetch-cases
 bun run dev
 ```
 
-## Docker
+### Local GitHub actions
 
-Build and run the UI and Bun API in one container:
+The workflow-owned shell logic lives in TypeScript actions under
+`.github/actions`. A Bun/Hono server can run those actions on demand through
+`@github/local-action` and trigger their GitHub cron schedules locally:
 
 ```bash
-docker build -t open-questions .
-docker run --rm -p 8080:8080 -v open-questions-data:/data open-questions
+API_TOKEN=change-me bun run actions:server
+curl -X POST http://localhost:3030/workflows/nightly/run \
+  -H 'authorization: Bearer change-me'
 ```
 
-Then open <http://localhost:8080>. The API is available under `/api`, and its
-queue and authentication state are stored in SQLite on the mounted `/data`
-volume. See [Self-hosting Open Questions](docs/self-hosting.md) for production
-configuration, OAuth, backups, reverse-proxy guidance, and local `act` validation.
+See [the local action server guide](apps/action-server/README.md) for endpoints,
+the `/workspace/.github` Docker volume, persisted run logs, and action bundle
+builds.
+
+## Docker
+
+Build and run the action API, production client, and Muxox in one container:
+
+```bash
+docker compose up --build
+```
+
+The action API is on <http://localhost:3030>, the client is on
+<http://localhost:3031>, and Muxox is on <http://localhost:3032>. See
+[Self-hosting Open Questions](docs/self-hosting.md) for mounts, configuration,
+and operations.
 
 ## Data Pipeline
 

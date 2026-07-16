@@ -17,43 +17,15 @@ jobs:
       run:
         working-directory: apps/example
     steps:
-      - name: Confirm Eastern Time window
-        if: github.event_name == 'schedule'
-        run: |
-          eastern="$(TZ=America/New_York date '+%H:%M')"
-          hour="${eastern%%:*}"
-          minute="${eastern##*:}"
-          # Tolerate Actions schedule drift around 08:45 Eastern
-          if [ "$hour" != "08" ] || [ "$minute" -lt 40 ] || [ "$minute" -gt 55 ]; then
-            echo "Skipping: Eastern time is $eastern (want ~08:45)."
-            echo "skip=true" >> "$GITHUB_ENV"
-          else
-            echo "Running at Eastern $eastern"
-            echo "skip=false" >> "$GITHUB_ENV"
-          fi
-
       - uses: actions/checkout@v4
-        if: env.skip != 'true'
 
       - uses: oven-sh/setup-bun@v2
-        if: env.skip != 'true'
 
-      - name: Install dependencies
-        if: env.skip != 'true'
-        run: bun install && bunx playwright install --with-deps chromium
-
-      - name: Claim a problem and save a contribution
-        if: env.skip != 'true'
-        run: bun run start:anthropic
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # GitHub-backed contributor token from the Catalog site (Authorization: Bearer).
-          OPEN_QUESTIONS_API_TOKEN: ${{ secrets.OPEN_QUESTIONS_API_TOKEN }}
-          OPEN_QUESTIONS_MCP_URL: https://unsolved-problems-api.seemueller.workers.dev/mcp
-          OPEN_QUESTIONS_AGENT_ID: github-actions-morning
-          OPEN_QUESTIONS_PICK_MODE: random
-          ANTHROPIC_MODEL: claude-sonnet-4-5
-          # Expanded into the committed apps/example/.mcp.json via ${VAR} references.
-          OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}
-          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
-          SEARXNG_URL: ${{ secrets.SEARXNG_URL }}
+      - name: Make morning contribution
+        uses: ./.github/actions/morning-contribution
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          api-token: ${{ secrets.OPEN_QUESTIONS_API_TOKEN }}
+          openalex-mailto: ${{ secrets.OPENALEX_MAILTO }}
+          openalex-api-key: ${{ secrets.OPENALEX_API_KEY }}
+          searxng-url: ${{ secrets.SEARXNG_URL }}

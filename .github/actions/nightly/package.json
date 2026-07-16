@@ -1,0 +1,12 @@
+{
+	"name": "nightly-action",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "ncc build src/index.ts -o dist"
+	},
+	"dependencies": {
+		"@actions/core": "^3.0.1",
+		"@actions/exec": "^3.0.0"
+	}
+}

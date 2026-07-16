@@ -1,0 +1,5 @@
+name: Nightly data build
+description: Refreshes the data feeds and builds the static client.
+runs:
+  using: node24
+  main: dist/index.js
