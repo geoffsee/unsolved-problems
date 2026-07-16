@@ -51,3 +51,9 @@ Run by CI nightly or on push to `master`:
 
 `fetch-news` writes the live feed to `apps/client/public/data/news.json` and also keeps daily snapshots in `apps/client/public/data/news-history/` with an `index.json` manifest.
 `fetch-cases` writes the live FBI ViCAP feed to `apps/client/public/data/cases.json` and keeps daily snapshots in `apps/client/public/data/case-history/` with an `index.json` manifest.
+
+## License
+
+Copyright (c) 2026 geoffsee. All rights reserved.
+
+Proprietary — see [`LICENSE`](./LICENSE). Use, redistribution, and commercial exploitation require a separate written commercial license from geoffsee.

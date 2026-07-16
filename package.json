@@ -2,6 +2,8 @@
 	"name": "open-questions",
 	"private": true,
 	"version": "0.0.0",
+	"license": "UNLICENSED",
+	"author": "geoffsee",
 	"type": "module",
 	"workspaces": [
 		"apps/*"

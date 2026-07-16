@@ -1,5 +1,8 @@
 {
 	"name": "@open-questions/client",
+	"private": true,
+	"license": "UNLICENSED",
+	"author": "geoffsee",
 	"scripts": {
 		"dev": "vike dev",
 		"build": "vike build",

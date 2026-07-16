@@ -2,6 +2,8 @@
 	"name": "@open-questions/api",
 	"private": true,
 	"version": "0.0.0",
+	"license": "UNLICENSED",
+	"author": "geoffsee",
 	"type": "module",
 	"scripts": {
 		"dev": "bun run --hot src/main.ts",
