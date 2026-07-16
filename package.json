@@ -11,7 +11,8 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
-		"typecheck": "bun run --workspaces typecheck"
+		"typecheck": "bun run --workspaces typecheck",
+		"test": "bun test --coverage"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.4"
