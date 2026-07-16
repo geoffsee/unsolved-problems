@@ -41,6 +41,16 @@ const providers = {
 			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
+	cursor: {
+		label: "Cursor",
+		note: "Cursor Agent SDK",
+		script: [
+			'export CURSOR_API_KEY="your_api_key_here"',
+			'export CURSOR_MODEL="composer-2.5"',
+			'export UNSOLVED_PROVIDER="cursor"',
+			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+		].join("\n"),
+	},
 } as const;
 
 type ProviderKey = keyof typeof providers;
