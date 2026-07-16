@@ -4,6 +4,7 @@ export type ResolvedPick = {
 	pickMode: string;
 	specificProblemId: string | null;
 	poolSize?: number;
+	category?: string | null;
 };
 
 function parseJsonPayload(text: string): unknown {
@@ -58,10 +59,84 @@ export function extractProblemIdsFromListResult(payload: unknown): string[] {
 		.filter((value): value is string => Boolean(value));
 }
 
-export async function listAvailableProblemIds(
+export function extractCategoriesFromListResult(payload: unknown): string[] {
+	const root = payload as {
+		result?: {
+			structuredContent?: {
+				categories?: Record<string, unknown>;
+				items?: Array<{ category?: unknown }>;
+			};
+		};
+		structuredContent?: {
+			categories?: Record<string, unknown>;
+			items?: Array<{ category?: unknown }>;
+		};
+	};
+
+	const categories =
+		root.result?.structuredContent?.categories ??
+		root.structuredContent?.categories;
+
+	if (categories && typeof categories === "object") {
+		return Object.entries(categories)
+			.filter(([, count]) => typeof count === "number" && count > 0)
+			.map(([name]) => name)
+			.sort((a, b) => a.localeCompare(b));
+	}
+
+	const items =
+		root.result?.structuredContent?.items ?? root.structuredContent?.items;
+	if (!Array.isArray(items)) return [];
+
+	return [
+		...new Set(
+			items
+				.map((item) =>
+					typeof item?.category === "string" ? item.category.trim() : "",
+				)
+				.filter(Boolean),
+		),
+	].sort((a, b) => a.localeCompare(b));
+}
+
+export function extractCategoriesFromCatalog(payload: unknown): string[] {
+	const root = payload as {
+		result?: { contents?: Array<{ text?: string }> };
+		contents?: Array<{ text?: string }>;
+	};
+	const text =
+		root.result?.contents?.find((item) => typeof item.text === "string")
+			?.text ??
+		root.contents?.find((item) => typeof item.text === "string")?.text;
+
+	if (!text) return [];
+
+	const catalog = JSON.parse(text) as {
+		categories?: Record<string, unknown>;
+	};
+	if (!catalog.categories || typeof catalog.categories !== "object") {
+		return [];
+	}
+
+	return Object.entries(catalog.categories)
+		.filter(([, count]) => typeof count === "number" && count > 0)
+		.map(([name]) => name)
+		.sort((a, b) => a.localeCompare(b));
+}
+
+export function pickRandomCategory(categories: string[]): string {
+	if (categories.length === 0) {
+		throw new Error("No available problem categories were returned.");
+	}
+
+	return categories[Math.floor(Math.random() * categories.length)]!;
+}
+
+async function callMcp(
 	mcpUrl: string,
-	limit = 25,
-): Promise<string[]> {
+	method: string,
+	params: Record<string, unknown>,
+): Promise<unknown> {
 	const response = await fetch(mcpUrl, {
 		method: "POST",
 		headers: {
@@ -72,28 +147,55 @@ export async function listAvailableProblemIds(
 		body: JSON.stringify({
 			jsonrpc: "2.0",
 			id: 1,
-			method: "tools/call",
-			params: {
-				name: "list_problems",
-				arguments: { limit, status: "available" },
-			},
+			method,
+			params,
 		}),
 	});
 
 	const text = await response.text();
 	if (!response.ok) {
 		throw new Error(
-			`list_problems failed (${response.status}): ${text.slice(0, 400)}`,
+			`${method} failed (${response.status}): ${text.slice(0, 400)}`,
 		);
 	}
 
-	return extractProblemIdsFromListResult(parseJsonPayload(text));
+	return parseJsonPayload(text);
+}
+
+export async function listAvailableProblemIds(
+	mcpUrl: string,
+	limit = 25,
+	category?: string,
+): Promise<{ candidateIds: string[]; categories: string[] }> {
+	const payload = await callMcp(mcpUrl, "tools/call", {
+		name: "list_problems",
+		arguments: {
+			limit,
+			status: "available",
+			...(category ? { category } : {}),
+		},
+	});
+
+	return {
+		candidateIds: extractProblemIdsFromListResult(payload),
+		categories: extractCategoriesFromListResult(payload),
+	};
+}
+
+export async function listCatalogCategories(mcpUrl: string): Promise<string[]> {
+	const payload = await callMcp(mcpUrl, "resources/read", {
+		uri: "unsolved://catalog",
+	});
+	return extractCategoriesFromCatalog(payload);
 }
 
 /**
  * Resolve pick mode before the agent runs.
  * "random" is decided in process (not by the model) so morning runs don't
  * keep claiming the same LLM-favored problem.
+ *
+ * Random mode first shuffles a category filter, then picks uniformly within
+ * that category — avoiding the astronomy-first bias of unfiltered shortlists.
  */
 export async function resolveRuntimePick(input: {
 	pickMode: string;
@@ -120,15 +222,30 @@ export async function resolveRuntimePick(input: {
 		};
 	}
 
-	const candidateIds = await listAvailableProblemIds(
-		input.mcpUrl,
-		input.limit ?? 25,
-	);
-	const chosenProblemId = pickRandomProblemId(candidateIds);
+	const limit = input.limit ?? 25;
+	const discovery = await listAvailableProblemIds(input.mcpUrl, 1);
+	let remaining =
+		discovery.categories.length > 0
+			? [...discovery.categories]
+			: await listCatalogCategories(input.mcpUrl);
 
-	return {
-		pickMode: "specific",
-		specificProblemId: chosenProblemId,
-		poolSize: candidateIds.length,
-	};
+	while (remaining.length > 0) {
+		const category = pickRandomCategory(remaining);
+		const { candidateIds } = await listAvailableProblemIds(
+			input.mcpUrl,
+			limit,
+			category,
+		);
+		if (candidateIds.length > 0) {
+			return {
+				pickMode: "specific",
+				specificProblemId: pickRandomProblemId(candidateIds),
+				poolSize: candidateIds.length,
+				category,
+			};
+		}
+		remaining = remaining.filter((name) => name !== category);
+	}
+
+	throw new Error("No available problems found in any category.");
 }

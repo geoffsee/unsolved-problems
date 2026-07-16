@@ -41,9 +41,12 @@ export function buildPickInstructions(input: {
 	if (input.pickMode === "random") {
 		return [
 			"Pick mode: random.",
-			"Call list_problems with status=available and limit=25.",
+			"Call list_problems with status=available and limit=1 to read structuredContent.categories (or read unsolved://catalog).",
+			"Choose one category uniformly at random from categories with count > 0.",
+			"Call list_problems again with that category, status=available, and limit=25.",
+			"If the category is empty, pick a different category and retry.",
 			"Choose one of the returned problem IDs uniformly at random.",
-			"Do not bias toward the first item.",
+			"Do not bias toward the first item or toward astronomy.",
 		].join("\n");
 	}
 

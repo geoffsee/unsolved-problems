@@ -164,6 +164,7 @@ async function main() {
 		agentId: AGENT_ID,
 		pickMode: PICK_MODE,
 		problemId: resolvedPick.specificProblemId,
+		category: resolvedPick.category ?? null,
 		poolSize: resolvedPick.poolSize ?? null,
 		userGoal: USER_GOAL || null,
 		mcpServerNames: Object.keys(mcpServers),

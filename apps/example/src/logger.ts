@@ -21,6 +21,7 @@ const TOOL_ARG_KEYS = [
 	"agentId",
 	"status",
 	"limit",
+	"category",
 	"kind",
 	"title",
 	"entity_type",

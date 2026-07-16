@@ -55,7 +55,7 @@ LOG_MAX_CHARS=4000
 2. `random`
 3. `specific`
 
-Use `random` for variety, or `agent` when the model should select based on the user brief.
+Use `random` for variety across fields (it shuffles a category filter first), or `agent` when the model should select based on the user brief.
 
 All runners will:
 

@@ -48,6 +48,8 @@ describe("buildPickInstructions", () => {
 	test("asks for a uniform random choice", () => {
 		const text = buildPickInstructions({ pickMode: "random" });
 		expect(text).toContain("Pick mode: random.");
+		expect(text).toContain("structuredContent.categories");
+		expect(text).toContain("Choose one category uniformly at random");
 		expect(text).toContain("limit=25");
 		expect(text).toContain("uniformly at random");
 	});

@@ -1046,14 +1046,20 @@ function createMcpServer(env?: Bindings) {
 		"list_problems",
 		{
 			title: "List Problems",
-			description: "List unsolved problems that agents can pick up.",
+			description:
+				"List unsolved problems that agents can pick up. Pass category to scope results to one field (recommended for random selection, since unfiltered results are sorted alphabetically and astronomy appears first).",
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,
 				idempotentHint: true,
 			},
 			inputSchema: z.object({
-				category: z.string().optional(),
+				category: z
+					.string()
+					.optional()
+					.describe(
+						"Exact category name filter, such as astronomy, biology, or computer science.",
+					),
 				query: z.string().optional(),
 				status: z
 					.enum(["available", "claimed", "submitted", "all"])
@@ -1082,6 +1088,13 @@ function createMcpServer(env?: Bindings) {
 			const summarized = await Promise.all(
 				items.map((problem) => summarizeProblem(problem, state)),
 			);
+			const categories = filtered.reduce<Record<string, number>>(
+				(acc, problem) => {
+					acc[problem.category] = (acc[problem.category] ?? 0) + 1;
+					return acc;
+				},
+				{},
+			);
 
 			return {
 				content: textContent(
@@ -1097,6 +1110,7 @@ function createMcpServer(env?: Bindings) {
 				structuredContent: {
 					items: summarized,
 					totalMatched: filtered.length,
+					categories,
 				},
 			};
 		},

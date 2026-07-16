@@ -53,23 +53,72 @@ type ProblemResource = {
 	researchEntries?: ResearchEntry[];
 };
 
+function extractCategoriesFromListResult(listResult: unknown): string[] {
+	const root = listResult as {
+		structuredContent?: { categories?: Record<string, unknown> };
+	};
+	const categories = root.structuredContent?.categories;
+	if (!categories || typeof categories !== "object") return [];
+	return Object.entries(categories)
+		.filter(([, count]) => typeof count === "number" && count > 0)
+		.map(([name]) => name)
+		.sort((a, b) => a.localeCompare(b));
+}
+
+function extractCategoriesFromCatalogText(text: string): string[] {
+	const catalog = JSON.parse(text) as { categories?: Record<string, unknown> };
+	if (!catalog.categories || typeof catalog.categories !== "object") {
+		return [];
+	}
+	return Object.entries(catalog.categories)
+		.filter(([, count]) => typeof count === "number" && count > 0)
+		.map(([name]) => name)
+		.sort((a, b) => a.localeCompare(b));
+}
+
+function pickRandomCategory(categories: string[]): string {
+	if (categories.length === 0) {
+		throw new Error("No available problem categories were returned.");
+	}
+	return categories[Math.floor(Math.random() * categories.length)]!;
+}
+
 async function listAvailableProblemIds(
 	mcpServer: MCPServerStreamableHttp,
 	limit: number,
+	category?: string,
 ) {
-	const args = { limit, status: "available" };
+	const args = {
+		limit,
+		status: "available" as const,
+		...(category ? { category } : {}),
+	};
 	const listResult = await withToolLogging(log, "list_problems", args, () =>
 		mcpServer.callTool("list_problems", args),
 	);
 	const candidatesText = getText(listResult);
 	const candidateIds = parseCandidateIds(candidatesText);
+	const categories = extractCategoriesFromListResult(listResult);
 	log.info("listed available problems", {
 		limit,
+		category: category ?? null,
 		candidateCount: candidateIds.length,
+		categories,
 		candidateIds,
 		candidatesText: truncate(candidatesText),
 	});
-	return { candidatesText, candidateIds };
+	return { candidatesText, candidateIds, categories };
+}
+
+async function listCatalogCategories(mcpServer: MCPServerStreamableHttp) {
+	const catalogResource = await mcpServer.readResource("unsolved://catalog");
+	const catalogJson = catalogResource.contents.find(
+		(item) => "text" in item,
+	)?.text;
+	if (!catalogJson) {
+		throw new Error("Catalog resource did not return JSON text.");
+	}
+	return extractCategoriesFromCatalogText(String(catalogJson));
 }
 
 async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
@@ -90,23 +139,47 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 		return { ...chosen, usage: null };
 	}
 
+	if (PICK_MODE === "random") {
+		const discovery = await listAvailableProblemIds(mcpServer, 1);
+		let remaining =
+			discovery.categories.length > 0
+				? [...discovery.categories]
+				: await listCatalogCategories(mcpServer);
+
+		while (remaining.length > 0) {
+			const category = pickRandomCategory(remaining);
+			const { candidateIds } = await listAvailableProblemIds(
+				mcpServer,
+				100,
+				category,
+			);
+			if (candidateIds.length > 0) {
+				const chosen = resolveChosenProblemId({
+					pickMode: PICK_MODE,
+					specificProblemId: SPECIFIC_PROBLEM_ID,
+					candidateIds,
+				});
+				log.info("selected random problem", {
+					problemId: chosen.chosenProblemId,
+					category,
+					poolSize: candidateIds.length,
+				});
+				return {
+					...chosen,
+					reason: `Selected randomly from available ${category} problems.`,
+					usage: null,
+				};
+			}
+			remaining = remaining.filter((name) => name !== category);
+		}
+
+		throw new Error("No available problems found in any category.");
+	}
+
 	const { candidatesText, candidateIds } = await listAvailableProblemIds(
 		mcpServer,
-		PICK_MODE === "random" ? 100 : 5,
+		5,
 	);
-
-	if (PICK_MODE === "random") {
-		const chosen = resolveChosenProblemId({
-			pickMode: PICK_MODE,
-			specificProblemId: SPECIFIC_PROBLEM_ID,
-			candidateIds,
-		});
-		log.info("selected random problem", {
-			problemId: chosen.chosenProblemId,
-			poolSize: candidateIds.length,
-		});
-		return { ...chosen, usage: null };
-	}
 
 	if (candidateIds.length === 0) {
 		throw new Error("The MCP server did not return any available problem IDs.");
