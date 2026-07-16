@@ -1,17 +1,12 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import {
-	Agent,
-	CursorAgentError,
-	type McpServerConfig,
-	type SDKMessage,
-} from "@cursor/sdk";
+import { Agent, CursorAgentError, type SDKMessage } from "@cursor/sdk";
+import { buildMcpServers } from "./cursorMcp";
 import {
 	createLogger,
 	type Logger,
 	summarizeContentBlocks,
 	truncate,
 } from "./logger";
+import { buildCatalogPrompt, buildUserBrief } from "./prompt";
 import {
 	extractProblemIdFromUnknown,
 	saveUsageArtifact,
@@ -35,162 +30,20 @@ const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
 const API_KEY = process.env.CURSOR_API_KEY;
 const CWD = process.env.CURSOR_CWD || process.cwd();
 
-function buildUserBrief() {
-	const parts = [
-		USER_GOAL ? `Desired outcome: ${USER_GOAL}` : null,
-		USER_BACKGROUND ? `Background or strengths: ${USER_BACKGROUND}` : null,
-		USER_CONSTRAINTS ? `Constraints or preferences: ${USER_CONSTRAINTS}` : null,
-		USER_CONTEXT ? `Extra context: ${USER_CONTEXT}` : null,
-	].filter((value): value is string => Boolean(value));
-
-	return parts.join("\n");
-}
-
-function buildPickInstructions() {
-	if (PICK_MODE === "specific") {
-		if (!SPECIFIC_PROBLEM_ID) {
-			throw new Error(
-				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
-			);
-		}
-
-		return [
-			`Pick mode: specific.`,
-			`Claim exactly this problemId: ${SPECIFIC_PROBLEM_ID}.`,
-			"Do not choose a different problem.",
-		].join("\n");
-	}
-
-	if (PICK_MODE === "random") {
-		return [
-			"Pick mode: random.",
-			"Call list_problems with status=available and limit=25.",
-			"Choose one of the returned problem IDs uniformly at random.",
-			"Do not bias toward the first item.",
-		].join("\n");
-	}
-
-	return [
-		"Pick mode: agent.",
-		"Call list_problems with status=available and limit=5.",
-		"Choose the best candidate for a short first-pass research note.",
-		"Prefer a concise statement and a clear scientific field.",
-		"Use the user brief to bias selection when it is relevant.",
-	].join("\n");
-}
-
 function buildPrompt() {
-	const userBrief = buildUserBrief();
-
-	return [
-		`You are agent ${AGENT_ID} contributing to the Catalog of the Unsolved.`,
-		"Use the unsolved MCP tools for catalog work.",
-		"Prefer the configured research MCP tools (searxng, fetch, openalex, crossref, playwright) over editing local files.",
-		"Do not modify repository source files. Do not open a PR.",
-		"",
-		buildPickInstructions(),
-		"",
-		"Workflow:",
-		`1. Select one available problem according to the pick instructions.`,
-		`2. Call pick_problem with agentId=${AGENT_ID}, leaseMinutes=${LEASE_MINUTES}, and the chosen problemId.`,
-		"3. Use the configured research tools to find a credible primary source or authoritative review relevant to the problem.",
-		"4. Call save_progress exactly once with a durable research contribution, not a generic plan or status report:",
-		"   - choose the most accurate kind (reference, hypothesis, failed_attempt, candidate_approach, or note)",
-		"   - use a specific title that says what was learned or proposed",
-		"   - in content, state a concrete claim or result, its supporting basis, the main limitation, and the next discriminating test",
-		"   - put the exact best source URL you found in artifactUrl; if no credible source was found, say so explicitly and do not use kind=reference",
-		"   - do not claim the open problem is solved",
-		"5. Stop after saving progress. Do not call submit_solution or release_problem.",
-		"",
-		userBrief ? `User brief:\n${userBrief}` : "User brief: none supplied.",
-		"",
-		"When finished, reply with a compact plain-text summary including problemId, claim outcome, and whether save_progress succeeded.",
-	].join("\n");
-}
-
-function resolveEnvValue(raw: string): string {
-	return raw.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name: string) => {
-		return process.env[name] ?? "";
+	return buildCatalogPrompt({
+		agentId: AGENT_ID,
+		leaseMinutes: LEASE_MINUTES,
+		pickMode: PICK_MODE,
+		specificProblemId: SPECIFIC_PROBLEM_ID,
+		userBrief: buildUserBrief({
+			goal: USER_GOAL,
+			background: USER_BACKGROUND,
+			constraints: USER_CONSTRAINTS,
+			context: USER_CONTEXT,
+		}),
+		variant: "cursor",
 	});
-}
-
-function loadResearchMcpServers(): Record<string, McpServerConfig> {
-	const mcpPath = join(CWD, ".mcp.json");
-	if (!existsSync(mcpPath)) {
-		return {};
-	}
-
-	const parsed = JSON.parse(readFileSync(mcpPath, "utf8")) as {
-		mcpServers?: Record<
-			string,
-			{
-				command?: string;
-				args?: string[];
-				env?: Record<string, string>;
-				cwd?: string;
-				url?: string;
-				type?: string;
-				headers?: Record<string, string>;
-			}
-		>;
-	};
-
-	const servers: Record<string, McpServerConfig> = {};
-	for (const [name, config] of Object.entries(parsed.mcpServers ?? {})) {
-		if (config.url) {
-			servers[name] = {
-				type: config.type === "sse" ? "sse" : "http",
-				url: resolveEnvValue(config.url),
-				...(config.headers
-					? {
-							headers: Object.fromEntries(
-								Object.entries(config.headers).map(([key, value]) => [
-									key,
-									resolveEnvValue(value),
-								]),
-							),
-						}
-					: {}),
-			};
-			continue;
-		}
-
-		if (!config.command) {
-			continue;
-		}
-
-		servers[name] = {
-			type: "stdio",
-			command: config.command,
-			args: config.args,
-			cwd: config.cwd ? resolveEnvValue(config.cwd) : CWD,
-			...(config.env
-				? {
-						env: Object.fromEntries(
-							Object.entries(config.env).map(([key, value]) => [
-								key,
-								resolveEnvValue(value),
-							]),
-						),
-					}
-				: {}),
-		};
-	}
-
-	return servers;
-}
-
-function buildMcpServers(): Record<string, McpServerConfig> {
-	return {
-		unsolved: {
-			type: "http",
-			url: MCP_URL,
-			headers: {
-				Accept: "application/json, text/event-stream",
-			},
-		},
-		...loadResearchMcpServers(),
-	};
 }
 
 function logSdkMessage(logger: Logger, message: SDKMessage) {
@@ -245,7 +98,6 @@ function logSdkMessage(logger: Logger, message: SDKMessage) {
 				status: message.status,
 				args: truncate(message.args),
 				result: truncate(message.result),
-				truncated: message.truncated,
 			});
 			return;
 		}
@@ -312,7 +164,10 @@ async function main() {
 	}
 
 	const prompt = buildPrompt();
-	const mcpServers = buildMcpServers();
+	const mcpServers = buildMcpServers({
+		mcpUrl: MCP_URL,
+		cwd: CWD,
+	});
 
 	log.info("starting cursor agent", {
 		mcpUrl: MCP_URL,
@@ -432,20 +287,22 @@ async function main() {
 	console.log(JSON.stringify(summary, null, 2));
 }
 
-try {
-	await main();
-} catch (error) {
-	if (error instanceof CursorAgentError) {
-		log.error("cursor agent startup failed", {
-			err: error,
-			retryable: error.isRetryable,
-		});
-		process.exitCode = 1;
-	} else {
-		log.error("cursor agent failed", { err: error });
-		if (process.exitCode === undefined) {
+if (import.meta.main) {
+	try {
+		await main();
+	} catch (error) {
+		if (error instanceof CursorAgentError) {
+			log.error("cursor agent startup failed", {
+				err: error,
+				retryable: error.isRetryable,
+			});
 			process.exitCode = 1;
+		} else {
+			log.error("cursor agent failed", { err: error });
+			if (process.exitCode === undefined) {
+				process.exitCode = 1;
+			}
 		}
+		throw error;
 	}
-	throw error;
 }

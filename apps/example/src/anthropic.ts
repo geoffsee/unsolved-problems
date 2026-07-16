@@ -10,6 +10,7 @@ import {
 	summarizeContentBlocks,
 	truncate,
 } from "./logger";
+import { buildCatalogPrompt, buildUserBrief } from "./prompt";
 import {
 	extractProblemIdFromUnknown,
 	saveUsageArtifact,
@@ -37,7 +38,7 @@ const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
 const HAS_PROJECT_MCP_CONFIG = existsSync(".mcp.json");
 
 const MCP_SERVER = "unsolved";
-const ALLOWED_MCP_TOOLS = [
+export const ALLOWED_MCP_TOOLS = [
 	`mcp__${MCP_SERVER}__list_problems`,
 	`mcp__${MCP_SERVER}__pick_problem`,
 	`mcp__${MCP_SERVER}__save_progress`,
@@ -50,75 +51,20 @@ const ALLOWED_MCP_TOOLS = [
 	"mcp__playwright",
 ];
 
-function buildUserBrief() {
-	const parts = [
-		USER_GOAL ? `Desired outcome: ${USER_GOAL}` : null,
-		USER_BACKGROUND ? `Background or strengths: ${USER_BACKGROUND}` : null,
-		USER_CONSTRAINTS ? `Constraints or preferences: ${USER_CONSTRAINTS}` : null,
-		USER_CONTEXT ? `Extra context: ${USER_CONTEXT}` : null,
-	].filter((value): value is string => Boolean(value));
-
-	return parts.join("\n");
-}
-
-function buildPickInstructions() {
-	if (PICK_MODE === "specific") {
-		if (!SPECIFIC_PROBLEM_ID) {
-			throw new Error(
-				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
-			);
-		}
-
-		return [
-			`Pick mode: specific.`,
-			`Claim exactly this problemId: ${SPECIFIC_PROBLEM_ID}.`,
-			"Do not choose a different problem.",
-		].join("\n");
-	}
-
-	if (PICK_MODE === "random") {
-		return [
-			"Pick mode: random.",
-			"Call list_problems with status=available and limit=25.",
-			"Choose one of the returned problem IDs uniformly at random.",
-			"Do not bias toward the first item.",
-		].join("\n");
-	}
-
-	return [
-		"Pick mode: agent.",
-		"Call list_problems with status=available and limit=5.",
-		"Choose the best candidate for a short first-pass research note.",
-		"Prefer a concise statement and a clear scientific field.",
-		"Use the user brief to bias selection when it is relevant.",
-	].join("\n");
-}
-
 function buildPrompt() {
-	const userBrief = buildUserBrief();
-
-	return [
-		`You are agent ${AGENT_ID} contributing to the Catalog of the Unsolved.`,
-		"Use only the unsolved MCP tools for catalog work.",
-		"",
-		buildPickInstructions(),
-		"",
-		"Workflow:",
-		`1. Select one available problem according to the pick instructions.`,
-		`2. Call pick_problem with agentId=${AGENT_ID}, leaseMinutes=${LEASE_MINUTES}, and the chosen problemId.`,
-		"3. Use the configured tools to find a credible primary source or authoritative review relevant to the problem.",
-		"4. Call save_progress exactly once with a durable research contribution, not a generic plan or status report:",
-		"   - choose the most accurate kind (reference, hypothesis, failed_attempt, candidate_approach, or note)",
-		"   - use a specific title that says what was learned or proposed",
-		"   - in content, state a concrete claim or result, its supporting basis, the main limitation, and the next discriminating test",
-		"   - put the exact best source URL you found in artifactUrl; if no credible source was found, say so explicitly and do not use kind=reference",
-		"   - do not claim the open problem is solved",
-		"5. Stop after saving progress. Do not call submit_solution or release_problem.",
-		"",
-		userBrief ? `User brief:\n${userBrief}` : "User brief: none supplied.",
-		"",
-		"When finished, reply with a compact plain-text summary including problemId, claim outcome, and whether save_progress succeeded.",
-	].join("\n");
+	return buildCatalogPrompt({
+		agentId: AGENT_ID,
+		leaseMinutes: LEASE_MINUTES,
+		pickMode: PICK_MODE,
+		specificProblemId: SPECIFIC_PROBLEM_ID,
+		userBrief: buildUserBrief({
+			goal: USER_GOAL,
+			background: USER_BACKGROUND,
+			constraints: USER_CONSTRAINTS,
+			context: USER_CONTEXT,
+		}),
+		variant: "anthropic",
+	});
 }
 
 function logSdkMessage(logger: Logger, message: SDKMessage) {
@@ -440,9 +386,11 @@ async function main() {
 	console.log(JSON.stringify(summary, null, 2));
 }
 
-try {
-	await main();
-} catch (error) {
-	log.error("anthropic agent failed", { err: error });
-	throw error;
+if (import.meta.main) {
+	try {
+		await main();
+	} catch (error) {
+		log.error("anthropic agent failed", { err: error });
+		throw error;
+	}
 }

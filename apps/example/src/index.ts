@@ -1,6 +1,13 @@
 import { Agent, MCPServerStreamableHttp, run } from "@openai/agents";
-import { z } from "zod";
 import { createLogger, truncate, withToolLogging } from "./logger";
+import {
+	getText,
+	parseCandidateIds,
+	ResearchCheckpointSchema,
+	resolveChosenProblemId,
+	SelectionSchema,
+} from "./openaiHelpers";
+import { buildUserBrief } from "./prompt";
 import { saveUsageArtifact } from "./usageArtifact";
 
 const log = createLogger({ agent: "openai" });
@@ -21,53 +28,6 @@ const USER_GOAL = process.env.UNSOLVED_USER_GOAL || "";
 const USER_BACKGROUND = process.env.UNSOLVED_USER_BACKGROUND || "";
 const USER_CONSTRAINTS = process.env.UNSOLVED_USER_CONSTRAINTS || "";
 const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
-
-const SelectionSchema = z.object({
-	problemId: z.string(),
-	reason: z.string(),
-});
-
-const ResearchCheckpointSchema = z.object({
-	kind: z.enum([
-		"note",
-		"reference",
-		"hypothesis",
-		"failed_attempt",
-		"candidate_approach",
-	]),
-	title: z.string(),
-	content: z.string(),
-	sourceUrl: z
-		.string()
-		.refine((value) => {
-			try {
-				const url = new URL(value);
-				return url.protocol === "http:" || url.protocol === "https:";
-			} catch {
-				return false;
-			}
-		}, "sourceUrl must be an http(s) URL")
-		.nullable(),
-});
-
-function getText(content: Array<{ type: string; text?: string }>) {
-	return content
-		.filter((item) => item.type === "text" && typeof item.text === "string")
-		.map((item) => item.text)
-		.join("\n");
-}
-
-function parseCandidateIds(text: string) {
-	return text
-		.split("\n")
-		.map(
-			(line) =>
-				line.match(
-					/^\d+\.\s+([^\s]+)\s+\[(available|claimed|submitted)\]/,
-				)?.[1],
-		)
-		.filter((value): value is string => Boolean(value));
-}
 
 type ProblemClaim = {
 	claimId: string;
@@ -93,17 +53,6 @@ type ProblemResource = {
 	researchEntries?: ResearchEntry[];
 };
 
-function buildUserBrief() {
-	const parts = [
-		USER_GOAL ? `Desired outcome: ${USER_GOAL}` : null,
-		USER_BACKGROUND ? `Background or strengths: ${USER_BACKGROUND}` : null,
-		USER_CONSTRAINTS ? `Constraints or preferences: ${USER_CONSTRAINTS}` : null,
-		USER_CONTEXT ? `Extra context: ${USER_CONTEXT}` : null,
-	].filter((value): value is string => Boolean(value));
-
-	return parts.join("\n");
-}
-
 async function listAvailableProblemIds(
 	mcpServer: MCPServerStreamableHttp,
 	limit: number,
@@ -124,21 +73,21 @@ async function listAvailableProblemIds(
 }
 
 async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
-	const userBrief = buildUserBrief();
+	const userBrief = buildUserBrief({
+		goal: USER_GOAL,
+		background: USER_BACKGROUND,
+		constraints: USER_CONSTRAINTS,
+		context: USER_CONTEXT,
+	});
 
 	if (PICK_MODE === "specific") {
-		if (!SPECIFIC_PROBLEM_ID) {
-			throw new Error(
-				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
-			);
-		}
-
-		log.info("using specific problem", { problemId: SPECIFIC_PROBLEM_ID });
-		return {
-			chosenProblemId: SPECIFIC_PROBLEM_ID,
-			reason: "Selected explicitly by the launcher.",
-			usage: null,
-		};
+		const chosen = resolveChosenProblemId({
+			pickMode: PICK_MODE,
+			specificProblemId: SPECIFIC_PROBLEM_ID,
+			candidateIds: [],
+		});
+		log.info("using specific problem", { problemId: chosen.chosenProblemId });
+		return { ...chosen, usage: null };
 	}
 
 	const { candidatesText, candidateIds } = await listAvailableProblemIds(
@@ -146,22 +95,21 @@ async function chooseProblemId(mcpServer: MCPServerStreamableHttp) {
 		PICK_MODE === "random" ? 25 : 5,
 	);
 
-	if (candidateIds.length === 0) {
-		throw new Error("The MCP server did not return any available problem IDs.");
-	}
-
 	if (PICK_MODE === "random") {
-		const chosenProblemId =
-			candidateIds[Math.floor(Math.random() * candidateIds.length)];
+		const chosen = resolveChosenProblemId({
+			pickMode: PICK_MODE,
+			specificProblemId: SPECIFIC_PROBLEM_ID,
+			candidateIds,
+		});
 		log.info("selected random problem", {
-			problemId: chosenProblemId,
+			problemId: chosen.chosenProblemId,
 			poolSize: candidateIds.length,
 		});
-		return {
-			chosenProblemId,
-			reason: "Selected randomly from the live available shortlist.",
-			usage: null,
-		};
+		return { ...chosen, usage: null };
+	}
+
+	if (candidateIds.length === 0) {
+		throw new Error("The MCP server did not return any available problem IDs.");
 	}
 
 	log.info("running problem selector agent", {
@@ -240,7 +188,12 @@ async function main() {
 	log.info("mcp server connected");
 
 	try {
-		const userBrief = buildUserBrief();
+		const userBrief = buildUserBrief({
+			goal: USER_GOAL,
+			background: USER_BACKGROUND,
+			constraints: USER_CONSTRAINTS,
+			context: USER_CONTEXT,
+		});
 		const {
 			chosenProblemId,
 			reason,
@@ -437,9 +390,11 @@ async function main() {
 	}
 }
 
-try {
-	await main();
-} catch (error) {
-	log.error("openai agent failed", { err: error });
-	throw error;
+if (import.meta.main) {
+	try {
+		await main();
+	} catch (error) {
+		log.error("openai agent failed", { err: error });
+		throw error;
+	}
 }

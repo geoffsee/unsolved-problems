@@ -8,6 +8,7 @@
 		"start:openai": "bun run src/index.ts",
 		"start:anthropic": "bun run src/anthropic.ts",
 		"start:cursor": "bun run src/cursor.ts",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

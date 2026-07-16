@@ -1,0 +1,113 @@
+export type UserBriefInput = {
+	goal?: string;
+	background?: string;
+	constraints?: string;
+	context?: string;
+};
+
+export type PickMode = "specific" | "random" | "agent" | string;
+
+export function buildUserBrief(input: UserBriefInput): string {
+	const parts = [
+		input.goal ? `Desired outcome: ${input.goal}` : null,
+		input.background ? `Background or strengths: ${input.background}` : null,
+		input.constraints
+			? `Constraints or preferences: ${input.constraints}`
+			: null,
+		input.context ? `Extra context: ${input.context}` : null,
+	].filter((value): value is string => Boolean(value));
+
+	return parts.join("\n");
+}
+
+export function buildPickInstructions(input: {
+	pickMode: PickMode;
+	specificProblemId?: string | null;
+}): string {
+	if (input.pickMode === "specific") {
+		if (!input.specificProblemId) {
+			throw new Error(
+				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
+			);
+		}
+
+		return [
+			`Pick mode: specific.`,
+			`Claim exactly this problemId: ${input.specificProblemId}.`,
+			"Do not choose a different problem.",
+		].join("\n");
+	}
+
+	if (input.pickMode === "random") {
+		return [
+			"Pick mode: random.",
+			"Call list_problems with status=available and limit=25.",
+			"Choose one of the returned problem IDs uniformly at random.",
+			"Do not bias toward the first item.",
+		].join("\n");
+	}
+
+	return [
+		"Pick mode: agent.",
+		"Call list_problems with status=available and limit=5.",
+		"Choose the best candidate for a short first-pass research note.",
+		"Prefer a concise statement and a clear scientific field.",
+		"Use the user brief to bias selection when it is relevant.",
+	].join("\n");
+}
+
+export function buildCatalogPrompt(input: {
+	agentId: string;
+	leaseMinutes: number;
+	pickMode: PickMode;
+	specificProblemId?: string | null;
+	userBrief: string;
+	variant: "anthropic" | "cursor";
+}): string {
+	const catalogLine =
+		input.variant === "anthropic"
+			? "Use only the unsolved MCP tools for catalog work."
+			: "Use the unsolved MCP tools for catalog work.";
+
+	const researchLines =
+		input.variant === "cursor"
+			? [
+					"Prefer the configured research MCP tools (searxng, fetch, openalex, crossref, playwright) over editing local files.",
+					"Do not modify repository source files. Do not open a PR.",
+				]
+			: [];
+
+	const researchStep =
+		input.variant === "anthropic"
+			? "3. Use the configured tools to find a credible primary source or authoritative review relevant to the problem."
+			: "3. Use the configured research tools to find a credible primary source or authoritative review relevant to the problem.";
+
+	return [
+		`You are agent ${input.agentId} contributing to the Catalog of the Unsolved.`,
+		catalogLine,
+		...researchLines,
+		"",
+		buildPickInstructions({
+			pickMode: input.pickMode,
+			specificProblemId: input.specificProblemId,
+		}),
+		"",
+		"Workflow:",
+		`1. Select one available problem according to the pick instructions.`,
+		`2. Call pick_problem with agentId=${input.agentId}, leaseMinutes=${input.leaseMinutes}, and the chosen problemId.`,
+		researchStep,
+		"4. Call save_progress exactly once with a durable research contribution, not a generic plan or status report:",
+		"   - choose the most accurate kind (reference, hypothesis, failed_attempt, candidate_approach, or note)",
+		"   - use a specific title that says what was learned or proposed",
+		"   - in content, state a concrete claim or result, its supporting basis, the main limitation, and the next discriminating test",
+		"   - put the exact best source URL you found in artifactUrl; if no credible source was found, say so explicitly and do not use kind=reference",
+		"   - do not claim the open problem is solved",
+		"5. Stop after saving progress. Do not call submit_solution or release_problem.",
+		"",
+		input.userBrief
+			? `User brief:\n${input.userBrief}`
+			: "User brief: none supplied.",
+		"",
+		"When finished, reply with a compact plain-text summary including problemId, claim outcome, and whether save_progress succeeded.",
+	].join("\n");
+}
