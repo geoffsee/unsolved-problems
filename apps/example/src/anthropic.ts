@@ -22,8 +22,13 @@ const ALLOWED_MCP_TOOLS = [
   `mcp__${MCP_SERVER}__list_problems`,
   `mcp__${MCP_SERVER}__pick_problem`,
   `mcp__${MCP_SERVER}__save_progress`,
-  `mcp__${MCP_SERVER}__search_web`,
   `mcp__${MCP_SERVER}__list_claims`,
+  // Research tooling comes from the servers in .mcp.json, not unsolved.
+  "mcp__searxng",
+  "mcp__fetch",
+  "mcp__openalex",
+  "mcp__crossref",
+  "mcp__playwright",
 ];
 
 function buildUserBrief() {
@@ -80,12 +85,12 @@ function buildPrompt() {
     "Workflow:",
     `1. Select one available problem according to the pick instructions.`,
     `2. Call pick_problem with agentId=${AGENT_ID}, leaseMinutes=${LEASE_MINUTES}, and the chosen problemId.`,
-    "3. Call search_web for a credible primary source or authoritative review relevant to the problem.",
+    "3. Use the configured tools to find a credible primary source or authoritative review relevant to the problem.",
     "4. Call save_progress exactly once with a durable research contribution, not a generic plan or status report:",
     "   - choose the most accurate kind (reference, hypothesis, failed_attempt, candidate_approach, or note)",
     "   - use a specific title that says what was learned or proposed",
     "   - in content, state a concrete claim or result, its supporting basis, the main limitation, and the next discriminating test",
-    "   - put the exact best source URL from search_web in artifactUrl; if no credible source was found, say so explicitly and do not use kind=reference",
+    "   - put the exact best source URL you found in artifactUrl; if no credible source was found, say so explicitly and do not use kind=reference",
     "   - do not claim the open problem is solved",
     "5. Stop after saving progress. Do not call submit_solution or release_problem.",
     "",

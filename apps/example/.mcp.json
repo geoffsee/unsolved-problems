@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch",
+        "--user-agent=global-scale-insights-research/1.0"
+      ]
+    },
+    "openalex": {
+      "command": "bunx",
+      "args": ["@cyanheads/openalex-mcp-server@0.7.4"],
+      "env": {
+        "OPENALEX_MAILTO": "${OPENALEX_MAILTO}",
+        "OPENALEX_API_KEY": "${OPENALEX_API_KEY}",
+        "MCP_TRANSPORT_TYPE": "stdio",
+        "MCP_LOG_LEVEL": "info"
+      }
+    },
+    "searxng": {
+      "command": "bunx",
+      "args": ["mcp-searxng@1.11.1"],
+      "env": {
+        "SEARXNG_URL": "${SEARXNG_URL}"
+      }
+    },
+    "crossref": {
+      "command": "bunx",
+      "args": ["@cyanheads/crossref-mcp-server@0.2.0"],
+      "env": {
+        "MCP_TRANSPORT_TYPE": "stdio",
+        "MCP_LOG_LEVEL": "info"
+      }
+    },
+    "playwright": {
+      "command": "bunx",
+      "args": ["@playwright/mcp@0.0.78"]
+    }
+  }
+}

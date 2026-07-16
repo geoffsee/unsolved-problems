@@ -27,10 +27,9 @@ public/data/
 *.sw?
 
 .playwright-mcp/
-# Materialized at runtime from the MCP_CONFIG secret; may contain credentials.
-.mcp.json
 .env.secrets
 package-lock.json
 /site-frontier.md
 /site-snapshot.md
 apps/api/data/
+/.env.*

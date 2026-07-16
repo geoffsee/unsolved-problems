@@ -13,10 +13,6 @@ permissions:
 jobs:
   contribute:
     runs-on: ubuntu-latest
-    env:
-      # Base64-encoded .mcp.json stored as a repo secret. May contain secrets;
-      # it is decoded to a file at runtime and never printed to the logs.
-      MCP_CONFIG: ${{ secrets.MCP_CONFIG }}
     defaults:
       run:
         working-directory: apps/example
@@ -46,21 +42,6 @@ jobs:
         if: env.skip != 'true'
         run: bun install
 
-      - name: Materialize MCP config
-        if: env.skip != 'true' && env.MCP_CONFIG != ''
-        run: |
-          # Restrict permissions on any file we create in this step.
-          umask 077
-          # Decode without echoing the (possibly secret-bearing) contents.
-          printf '%s' "$MCP_CONFIG" | base64 -d > .mcp.json
-          # Fail fast on a malformed secret without printing the file.
-          if ! node -e "JSON.parse(require('fs').readFileSync('.mcp.json','utf8'))" 2>/dev/null; then
-            echo "::error::MCP_CONFIG did not decode to valid JSON." >&2
-            rm -f .mcp.json
-            exit 1
-          fi
-          echo "Wrote .mcp.json ($(wc -c < .mcp.json) bytes)."
-
       - name: Claim a problem and save a contribution
         if: env.skip != 'true'
         run: bun run start:anthropic
@@ -70,7 +51,7 @@ jobs:
           UNSOLVED_AGENT_ID: github-actions-morning
           UNSOLVED_PICK_MODE: random
           ANTHROPIC_MODEL: claude-sonnet-4-5
-
-      - name: Remove materialized MCP config
-        if: always()
-        run: rm -f .mcp.json
+          # Expanded into the committed apps/example/.mcp.json via ${VAR} references.
+          OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          SEARXNG_URL: ${{ secrets.SEARXNG_URL }}
