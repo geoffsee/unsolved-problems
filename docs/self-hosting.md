@@ -110,6 +110,11 @@ compressed files under `PUBLISH_DATA_DIR` and serves it at `/data/*.json`.
 The active category/source manifest is served at `/data/manifest.json`; each
 published catalog data file must contain exactly the categories it declares.
 
+Cloudflare Worker deployments use the configured `open_questions_data` R2
+binding instead of the local filesystem. R2 stores the published JSON objects
+under their `/data/`-relative names; the Bun self-hosted server continues to
+use the compressed filesystem format above.
+
 ## Local account quick start
 
 ```bash

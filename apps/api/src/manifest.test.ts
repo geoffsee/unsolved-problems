@@ -23,6 +23,21 @@ const PROBLEMS = {
 	},
 };
 
+function createMemoryR2() {
+	const objects = new Map<string, string>();
+	const bucket = {
+		async get(key: string) {
+			const value = objects.get(key);
+			return value === undefined ? null : { text: async () => value };
+		},
+		async put(key: string, value: string) {
+			objects.set(key, value);
+			return {};
+		},
+	};
+	return { bucket: bucket as unknown as R2Bucket, objects };
+}
+
 let tempDir: string;
 let previousDataDir: string | undefined;
 let previousPublishKey: string | undefined;
@@ -45,16 +60,21 @@ afterEach(() => {
 	rmSync(tempDir, { recursive: true, force: true });
 });
 
-async function publish(path: string, data: unknown) {
+async function publish(
+	path: string,
+	data: unknown,
+	env?: Record<string, unknown>,
+) {
 	return app.fetch(
 		new Request("http://localhost/publish", {
 			method: "POST",
 			headers: {
-				authorization: "Bearer test-publish-key",
+				authorization: `Bearer ${String(env?.PUBLISH_KEY ?? "test-publish-key")}`,
 				"content-type": "application/json",
 			},
 			body: JSON.stringify({ path, data }),
 		}),
+		env,
 	);
 }
 
@@ -81,5 +101,30 @@ describe("published manifest and data routes", () => {
 		const message = (await response.json()) as { error: string };
 		expect(message.error).toContain('missing category "geometry"');
 		expect(message.error).toContain('extra category "other"');
+	});
+
+	test("uses Cloudflare-style environment bindings for publishing", async () => {
+		const { bucket, objects } = createMemoryR2();
+		const workerEnv = {
+			PUBLISH_KEY: "worker-publish-key",
+			open_questions_data: bucket,
+		};
+		expect(
+			(await publish("/data/problems.json", PROBLEMS, workerEnv)).status,
+		).toBe(200);
+		const response = await publish("/data/manifest.json", MANIFEST, workerEnv);
+		expect(response.status).toBe(200);
+		expect(
+			(await publish("/data/problems.json", PROBLEMS, workerEnv)).status,
+		).toBe(200);
+		expect(objects.has("manifest.json")).toBe(true);
+		expect(objects.has("problems.json")).toBe(true);
+
+		const problemsResponse = await app.fetch(
+			new Request("http://localhost/data/problems.json"),
+			workerEnv,
+		);
+		expect(problemsResponse.status).toBe(200);
+		expect(await problemsResponse.json()).toEqual(PROBLEMS);
 	});
 });

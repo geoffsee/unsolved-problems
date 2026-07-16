@@ -52,6 +52,7 @@ type Bindings = AuthBindings & {
 	PROBLEM_QUEUE?: DurableObjectNamespace;
 	PUBLISH_KEY?: string;
 	PUBLISH_DATA_DIR?: string;
+	open_questions_data?: R2Bucket;
 };
 
 type ProblemSection = {
@@ -261,6 +262,10 @@ function publishedDataPath(pathname: string, env?: Bindings) {
 	return join(root, relative);
 }
 
+function publishedDataKey(pathname: string) {
+	return pathname.replace(/^\/data\//, "");
+}
+
 function isMissingFileError(error: unknown): boolean {
 	return (
 		error instanceof Error &&
@@ -290,6 +295,13 @@ async function readPublishedText(
 	pathname: string,
 	env?: Bindings,
 ): Promise<string | null> {
+	if (env?.open_questions_data) {
+		const object = await env.open_questions_data.get(
+			publishedDataKey(pathname),
+		);
+		return object ? object.text() : null;
+	}
+
 	let compressed: Uint8Array;
 	try {
 		compressed = await readFile(`${publishedDataPath(pathname, env)}.zst`);
@@ -298,6 +310,23 @@ async function readPublishedText(
 		throw error;
 	}
 	return zstdDecompress(compressed);
+}
+
+async function writePublishedText(
+	pathname: string,
+	value: string,
+	env?: Bindings,
+): Promise<void> {
+	if (env?.open_questions_data) {
+		await env.open_questions_data.put(publishedDataKey(pathname), value, {
+			httpMetadata: { contentType: "application/json" },
+		});
+		return;
+	}
+
+	const path = publishedDataPath(pathname, env);
+	await mkdir(path.replace(/\/[^/]+$/, ""), { recursive: true });
+	await writeFile(`${path}.zst`, await zstdCompress(value));
 }
 
 async function validateRuntimeData(
@@ -2405,10 +2434,9 @@ app.get("/data/*", async (c) => {
 		return jsonError("Only approved JSON data files are available.", 404);
 	}
 
-	const localPath = `${publishedDataPath(pathname, c.env)}.zst`;
 	let localBody: string | null = null;
 	try {
-		localBody = await zstdDecompress(await readFile(localPath));
+		localBody = await readPublishedText(pathname, c.env);
 	} catch (error) {
 		if (!isMissingFileError(error)) {
 			return jsonError(
@@ -2523,9 +2551,7 @@ app.post("/publish", async (c) => {
 			400,
 		);
 	}
-	const path = publishedDataPath(body.path, c.env);
-	await mkdir(path.replace(/\/[^/]+$/, ""), { recursive: true });
-	await writeFile(`${path}.zst`, await zstdCompress(JSON.stringify(body.data)));
+	await writePublishedText(body.path, JSON.stringify(body.data), c.env);
 	if (kind === "manifest" || kind === "problems" || kind === "enrichments") {
 		cachedProblems = undefined;
 	}
