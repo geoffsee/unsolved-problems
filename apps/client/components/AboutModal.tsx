@@ -95,7 +95,7 @@ export default function AboutModal({
 							<Text>
 								Source on{" "}
 								<Link
-									href="https://github.com/geoffsee/unsolved-problems"
+									href="https://github.com/geoffsee/open-questions"
 									target="_blank"
 									rel="noopener noreferrer"
 									color="app.accent"

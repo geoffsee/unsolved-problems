@@ -8,9 +8,9 @@ const providers = {
 		script: [
 			'export ANTHROPIC_API_KEY="your_api_key_here"',
 			'export ANTHROPIC_MODEL="claude-sonnet-4-5"',
-			'export UNSOLVED_PROVIDER="anthropic"',
-			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
-			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+			'export OPEN_QUESTIONS_PROVIDER="anthropic"',
+			'export OPEN_QUESTIONS_API_TOKEN="up_live_your_token_from_github_auth"',
+			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
 	openai: {
@@ -19,8 +19,8 @@ const providers = {
 		script: [
 			'export OPENAI_API_KEY="your_api_key_here"',
 			'export OPENAI_MODEL="gpt-4.1"',
-			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
-			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+			'export OPEN_QUESTIONS_API_TOKEN="up_live_your_token_from_github_auth"',
+			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
 	ollama: {
@@ -30,8 +30,8 @@ const providers = {
 			'export OPENAI_API_KEY="ollama"',
 			'export OPENAI_BASE_URL="http://127.0.0.1:11434/v1"',
 			'export OPENAI_MODEL="qwen2.5-coder:14b"',
-			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
-			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+			'export OPEN_QUESTIONS_API_TOKEN="up_live_your_token_from_github_auth"',
+			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
 	lmstudio: {
@@ -41,8 +41,8 @@ const providers = {
 			'export OPENAI_API_KEY="lm-studio"',
 			'export OPENAI_BASE_URL="http://127.0.0.1:1234/v1"',
 			'export OPENAI_MODEL="local-model"',
-			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
-			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+			'export OPEN_QUESTIONS_API_TOKEN="up_live_your_token_from_github_auth"',
+			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
 	cursor: {
@@ -51,9 +51,9 @@ const providers = {
 		script: [
 			'export CURSOR_API_KEY="your_api_key_here"',
 			'export CURSOR_MODEL="composer-2.5"',
-			'export UNSOLVED_PROVIDER="cursor"',
-			'export UNSOLVED_API_TOKEN="up_live_your_token_from_github_auth"',
-			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh" | bash',
+			'export OPEN_QUESTIONS_PROVIDER="cursor"',
+			'export OPEN_QUESTIONS_API_TOKEN="up_live_your_token_from_github_auth"',
+			'curl -fsSL "https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh" | bash',
 		].join("\n"),
 	},
 } as const;
@@ -264,7 +264,7 @@ export default function AgentLaunchCard() {
 												as="span"
 												color={
 													name === "OPENAI_BASE_URL" ||
-													name === "UNSOLVED_PROVIDER"
+													name === "OPEN_QUESTIONS_PROVIDER"
 														? "#e0af68"
 														: "#9ece6a"
 												}

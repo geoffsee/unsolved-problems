@@ -7,7 +7,7 @@ import vikeReactChakra from "vike-react-chakra/config";
 
 const config: Config = {
 	// https://vike.dev/head-tags
-	title: "Unsolved Problems Explorer",
+	title: "Open Questions",
 	description:
 		"A curated index of open questions across scientific disciplines",
 	prerender: true,

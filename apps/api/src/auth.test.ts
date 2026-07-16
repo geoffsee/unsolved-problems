@@ -49,15 +49,15 @@ beforeEach(() => {
 			researchEntriesByProblemId: {},
 		}),
 	);
-	previousAuthPath = process.env.UNSOLVED_AUTH_PATH;
-	previousStatePath = process.env.UNSOLVED_STATE_PATH;
+	previousAuthPath = process.env.OPEN_QUESTIONS_AUTH_PATH;
+	previousStatePath = process.env.OPEN_QUESTIONS_STATE_PATH;
 	previousAuthDisabled = process.env.AUTH_DISABLED;
 	previousContributionRequired = process.env.CONTRIBUTION_AUTH_REQUIRED;
 	previousGithubId = process.env.GITHUB_CLIENT_ID;
 	previousGithubSecret = process.env.GITHUB_CLIENT_SECRET;
 	previousAllowDev = process.env.ALLOW_DEV_AUTH;
-	process.env.UNSOLVED_AUTH_PATH = authPath;
-	process.env.UNSOLVED_STATE_PATH = statePath;
+	process.env.OPEN_QUESTIONS_AUTH_PATH = authPath;
+	process.env.OPEN_QUESTIONS_STATE_PATH = statePath;
 	delete process.env.AUTH_DISABLED;
 	delete process.env.GITHUB_CLIENT_ID;
 	delete process.env.GITHUB_CLIENT_SECRET;
@@ -72,8 +72,8 @@ afterEach(() => {
 		if (value === undefined) delete process.env[key];
 		else process.env[key] = value;
 	};
-	restore("UNSOLVED_AUTH_PATH", previousAuthPath);
-	restore("UNSOLVED_STATE_PATH", previousStatePath);
+	restore("OPEN_QUESTIONS_AUTH_PATH", previousAuthPath);
+	restore("OPEN_QUESTIONS_STATE_PATH", previousStatePath);
 	restore("AUTH_DISABLED", previousAuthDisabled);
 	restore("CONTRIBUTION_AUTH_REQUIRED", previousContributionRequired);
 	restore("GITHUB_CLIENT_ID", previousGithubId);
@@ -111,9 +111,9 @@ describe("auth helpers", () => {
 	});
 
 	test("isSafeReturnTo allows pages origin and localhost", () => {
-		expect(
-			isSafeReturnTo("https://geoffsee.github.io/unsolved-problems/"),
-		).toBe(true);
+		expect(isSafeReturnTo("https://geoffsee.github.io/open-questions/")).toBe(
+			true,
+		);
 		expect(isSafeReturnTo("http://localhost:3000/")).toBe(true);
 		expect(isSafeReturnTo("https://evil.example/phish")).toBe(false);
 	});
@@ -121,10 +121,10 @@ describe("auth helpers", () => {
 	test("oauth state round-trips", async () => {
 		process.env.GITHUB_CLIENT_SECRET = "test-secret";
 		const state = await createOAuthState(
-			"https://geoffsee.github.io/unsolved-problems/",
+			"https://geoffsee.github.io/open-questions/",
 		);
 		await expect(verifyOAuthState(state)).resolves.toBe(
-			"https://geoffsee.github.io/unsolved-problems/",
+			"https://geoffsee.github.io/open-questions/",
 		);
 		await expect(verifyOAuthState(`${state}tampered`)).resolves.toBeNull();
 	});

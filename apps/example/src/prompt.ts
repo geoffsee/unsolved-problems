@@ -27,7 +27,7 @@ export function buildPickInstructions(input: {
 	if (input.pickMode === "specific") {
 		if (!input.specificProblemId) {
 			throw new Error(
-				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
+				"OPEN_QUESTIONS_PROBLEM_ID is required when OPEN_QUESTIONS_PICK_MODE=specific.",
 			);
 		}
 
@@ -41,7 +41,7 @@ export function buildPickInstructions(input: {
 	if (input.pickMode === "random") {
 		return [
 			"Pick mode: random.",
-			"Call list_problems with status=available and limit=1 to read structuredContent.categories (or read unsolved://catalog).",
+			"Call list_problems with status=available and limit=1 to read structuredContent.categories (or read open-questions://catalog).",
 			"Choose one category uniformly at random from categories with count > 0.",
 			"Call list_problems again with that category, status=available, and limit=25.",
 			"If the category is empty, pick a different category and retry.",
@@ -89,7 +89,7 @@ export function buildCatalogPrompt(input: {
 			: "3. Use the configured research tools to find a credible primary source or authoritative review relevant to the problem.";
 
 	return [
-		`You are agent ${input.agentId} contributing to the Catalog of the Unsolved.`,
+		`You are agent ${input.agentId} contributing to the Open Questions.`,
 		catalogLine,
 		...researchLines,
 		"",

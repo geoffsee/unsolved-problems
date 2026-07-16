@@ -127,12 +127,12 @@ describe("cursor buildMcpServers", () => {
 		expect(servers.fetch?.type).toBe("stdio");
 	});
 
-	test("includes Authorization bearer when UNSOLVED_API_TOKEN is set", () => {
+	test("includes Authorization bearer when OPEN_QUESTIONS_API_TOKEN is set", () => {
 		const cwd = tempProject();
 		const servers = buildMcpServers({
 			mcpUrl: "https://example.test/mcp",
 			cwd,
-			env: { UNSOLVED_API_TOKEN: "up_live_test" },
+			env: { OPEN_QUESTIONS_API_TOKEN: "up_live_test" },
 		});
 		expect(servers.unsolved).toEqual({
 			type: "http",

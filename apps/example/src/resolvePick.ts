@@ -133,7 +133,7 @@ export function pickRandomCategory(categories: string[]): string {
 }
 
 function bearerHeaders(): Record<string, string> {
-	const token = process.env.UNSOLVED_API_TOKEN?.trim();
+	const token = process.env.OPEN_QUESTIONS_API_TOKEN?.trim();
 	if (!token) return {};
 	return { authorization: `Bearer ${token}` };
 }
@@ -191,7 +191,7 @@ export async function listAvailableProblemIds(
 
 export async function listCatalogCategories(mcpUrl: string): Promise<string[]> {
 	const payload = await callMcp(mcpUrl, "resources/read", {
-		uri: "unsolved://catalog",
+		uri: "open-questions://catalog",
 	});
 	return extractCategoriesFromCatalog(payload);
 }
@@ -213,7 +213,7 @@ export async function resolveRuntimePick(input: {
 	if (input.pickMode === "specific") {
 		if (!input.specificProblemId) {
 			throw new Error(
-				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
+				"OPEN_QUESTIONS_PROBLEM_ID is required when OPEN_QUESTIONS_PICK_MODE=specific.",
 			);
 		}
 		return {

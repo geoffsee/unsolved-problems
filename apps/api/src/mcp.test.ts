@@ -136,11 +136,11 @@ beforeEach(() => {
 			lookupByHash: {},
 		}),
 	);
-	previousStatePath = process.env.UNSOLVED_STATE_PATH;
-	previousAuthPath = process.env.UNSOLVED_AUTH_PATH;
+	previousStatePath = process.env.OPEN_QUESTIONS_STATE_PATH;
+	previousAuthPath = process.env.OPEN_QUESTIONS_AUTH_PATH;
 	previousAuthDisabled = process.env.AUTH_DISABLED;
-	process.env.UNSOLVED_STATE_PATH = statePath;
-	process.env.UNSOLVED_AUTH_PATH = authPath;
+	process.env.OPEN_QUESTIONS_STATE_PATH = statePath;
+	process.env.OPEN_QUESTIONS_AUTH_PATH = authPath;
 	// Existing MCP tool tests focus on queue behavior, not OAuth.
 	process.env.AUTH_DISABLED = "1";
 	resetLocalRuntimeStateForTests();
@@ -151,14 +151,14 @@ beforeEach(() => {
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 	if (previousStatePath === undefined) {
-		delete process.env.UNSOLVED_STATE_PATH;
+		delete process.env.OPEN_QUESTIONS_STATE_PATH;
 	} else {
-		process.env.UNSOLVED_STATE_PATH = previousStatePath;
+		process.env.OPEN_QUESTIONS_STATE_PATH = previousStatePath;
 	}
 	if (previousAuthPath === undefined) {
-		delete process.env.UNSOLVED_AUTH_PATH;
+		delete process.env.OPEN_QUESTIONS_AUTH_PATH;
 	} else {
-		process.env.UNSOLVED_AUTH_PATH = previousAuthPath;
+		process.env.OPEN_QUESTIONS_AUTH_PATH = previousAuthPath;
 	}
 	if (previousAuthDisabled === undefined) {
 		delete process.env.AUTH_DISABLED;
@@ -433,9 +433,9 @@ describe("pick_problem MCP tool", () => {
 });
 
 describe("catalog resource and claims listing", () => {
-	test("reads unsolved://catalog with category inventory", async () => {
+	test("reads open-questions://catalog with category inventory", async () => {
 		const result = await callMcp("resources/read", {
-			uri: "unsolved://catalog",
+			uri: "open-questions://catalog",
 		});
 		const contents = result.contents as Array<{ text?: string }>;
 		const catalog = JSON.parse(contents[0]?.text ?? "{}") as {

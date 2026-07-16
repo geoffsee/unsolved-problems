@@ -48,10 +48,10 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # GitHub-backed contributor token from the Catalog site (Authorization: Bearer).
-          UNSOLVED_API_TOKEN: ${{ secrets.UNSOLVED_API_TOKEN }}
-          UNSOLVED_MCP_URL: https://unsolved-problems-api.seemueller.workers.dev/mcp
-          UNSOLVED_AGENT_ID: github-actions-morning
-          UNSOLVED_PICK_MODE: random
+          OPEN_QUESTIONS_API_TOKEN: ${{ secrets.OPEN_QUESTIONS_API_TOKEN }}
+          OPEN_QUESTIONS_MCP_URL: https://unsolved-problems-api.seemueller.workers.dev/mcp
+          OPEN_QUESTIONS_AGENT_ID: github-actions-morning
+          OPEN_QUESTIONS_PICK_MODE: random
           ANTHROPIC_MODEL: claude-sonnet-4-5
           # Expanded into the committed apps/example/.mcp.json via ${VAR} references.
           OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}

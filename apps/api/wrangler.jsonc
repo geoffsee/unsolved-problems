@@ -6,7 +6,7 @@
 	"compatibility_flags": ["nodejs_compat"],
 
 	"vars": {
-		"PAGES_ORIGIN": "https://geoffsee.github.io/unsolved-problems"
+		"PAGES_ORIGIN": "https://geoffsee.github.io/open-questions"
 	},
 	"durable_objects": {
 		"bindings": [

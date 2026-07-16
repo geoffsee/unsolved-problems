@@ -65,7 +65,7 @@ async function wikiRequest(
 	}
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		const res = await fetch(url, {
-			headers: { "User-Agent": "UnsolvedProblemsFetcher/1.0 (Build; Bun)" },
+			headers: { "User-Agent": "OpenQuestionsFetcher/1.0 (Build; Bun)" },
 		});
 		if (res.ok) return (await res.json()) as WikiParseResponse;
 		if (res.status === 429 && attempt < retries) {

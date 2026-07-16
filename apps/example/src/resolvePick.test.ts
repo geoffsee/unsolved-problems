@@ -438,7 +438,7 @@ describe("resolveRuntimePick", () => {
 				specificProblemId: null,
 				mcpUrl: "https://example.test/mcp",
 			}),
-		).rejects.toThrow("UNSOLVED_PROBLEM_ID is required");
+		).rejects.toThrow("OPEN_QUESTIONS_PROBLEM_ID is required");
 	});
 });
 
@@ -517,7 +517,7 @@ describe("listAvailableProblemIds / listCatalogCategories", () => {
 				params?: { uri?: string };
 			};
 			expect(body.method).toBe("resources/read");
-			expect(body.params?.uri).toBe("unsolved://catalog");
+			expect(body.params?.uri).toBe("open-questions://catalog");
 			return new Response(
 				JSON.stringify({
 					result: {

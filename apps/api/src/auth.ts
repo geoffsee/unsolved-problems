@@ -69,7 +69,7 @@ export const CONTRIBUTION_TOOLS = new Set([
 	"save_progress",
 ]);
 
-const DEFAULT_PAGES_ORIGIN = "https://geoffsee.github.io/unsolved-problems";
+const DEFAULT_PAGES_ORIGIN = "https://geoffsee.github.io/open-questions";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
 
@@ -101,7 +101,7 @@ function getLocalAuthPath() {
 		}
 
 		return (
-			process.env.UNSOLVED_AUTH_PATH ||
+			process.env.OPEN_QUESTIONS_AUTH_PATH ||
 			fileURLToPath(new URL("../data/auth-store.json", metaUrl))
 		);
 	} catch {

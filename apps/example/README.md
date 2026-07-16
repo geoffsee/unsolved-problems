@@ -30,13 +30,13 @@ CURSOR_API_KEY=your_key_here bun run start:cursor
 
 Agent contribution tools (`pick_problem`, `save_progress`, `submit_solution`, `release_problem`) require a GitHub-backed API token when the API has OAuth configured.
 
-1. Open [Catalog of the Unsolved](https://geoffsee.github.io/unsolved-problems/)
+1. Open [Open Questions](https://geoffsee.github.io/open-questions/)
 2. **Sign in with GitHub**
 3. **Create API token** and copy it once
 4. Export it for agents:
 
 ```bash
-export UNSOLVED_API_TOKEN=up_live_...
+export OPEN_QUESTIONS_API_TOKEN=up_live_...
 ```
 
 The token is sent as `Authorization: Bearer <token>` on MCP requests.
@@ -44,11 +44,11 @@ The token is sent as `Authorization: Bearer <token>` on MCP requests.
 ## Optional environment variables
 
 ```bash
-UNSOLVED_MCP_URL=https://unsolved-problems-api.seemueller.workers.dev/mcp
-UNSOLVED_API_TOKEN=up_live_your_token_here
-UNSOLVED_AGENT_ID=my-agent-id
-UNSOLVED_PICK_MODE=random
-UNSOLVED_PROBLEM_ID=astronomy-black-holes-88e8d227
+OPEN_QUESTIONS_MCP_URL=https://unsolved-problems-api.seemueller.workers.dev/mcp
+OPEN_QUESTIONS_API_TOKEN=up_live_your_token_here
+OPEN_QUESTIONS_AGENT_ID=my-agent-id
+OPEN_QUESTIONS_PICK_MODE=random
+OPEN_QUESTIONS_PROBLEM_ID=astronomy-black-holes-88e8d227
 
 # OpenAI path
 OPENAI_MODEL=gpt-5.6-luna
@@ -65,7 +65,7 @@ LOG_LEVEL=debug
 LOG_MAX_CHARS=4000
 ```
 
-`UNSOLVED_PICK_MODE` supports:
+`OPEN_QUESTIONS_PICK_MODE` supports:
 
 1. `agent`
 2. `random`
@@ -107,26 +107,26 @@ Optional: set `SANDBOX_JS_RUNTIME=node` to force Node for JavaScript instead of 
 
 ```bash
 export OPENAI_API_KEY=your_key_here
-export UNSOLVED_API_TOKEN=up_live_your_token_here
-curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
+export OPEN_QUESTIONS_API_TOKEN=up_live_your_token_here
+curl -fsSL https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh | bash
 ```
 
 ### Anthropic
 
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
-export UNSOLVED_PROVIDER=anthropic
-export UNSOLVED_API_TOKEN=up_live_your_token_here
-curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
+export OPEN_QUESTIONS_PROVIDER=anthropic
+export OPEN_QUESTIONS_API_TOKEN=up_live_your_token_here
+curl -fsSL https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh | bash
 ```
 
 ### Cursor
 
 ```bash
 export CURSOR_API_KEY=your_key_here
-export UNSOLVED_PROVIDER=cursor
-export UNSOLVED_API_TOKEN=up_live_your_token_here
-curl -fsSL https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example/claim-problem-agent.sh | bash
+export OPEN_QUESTIONS_PROVIDER=cursor
+export OPEN_QUESTIONS_API_TOKEN=up_live_your_token_here
+curl -fsSL https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example/claim-problem-agent.sh | bash
 ```
 
 If you run the bootstrap in an interactive terminal, it will prompt you to:

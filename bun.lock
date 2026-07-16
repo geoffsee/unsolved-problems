@@ -3,13 +3,13 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "unsolved-problems",
+      "name": "open-questions",
       "devDependencies": {
         "@biomejs/biome": "2.5.4",
       },
     },
     "apps/api": {
-      "name": "@unsolved-problems/api",
+      "name": "@open-questions/api",
       "version": "0.0.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -24,7 +24,7 @@
       },
     },
     "apps/client": {
-      "name": "@unsolved-problems/client",
+      "name": "@open-questions/client",
       "dependencies": {
         "@universal-middleware/core": "^0.4.17",
         "@vikejs/h3": "^0.2.0",
@@ -50,7 +50,7 @@
       },
     },
     "apps/example": {
-      "name": "@unsolved-problems/example",
+      "name": "@open-questions/example",
       "version": "0.0.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.141",
@@ -356,6 +356,12 @@
 
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
+    "@open-questions/api": ["@open-questions/api@workspace:apps/api"],
+
+    "@open-questions/client": ["@open-questions/client@workspace:apps/client"],
+
+    "@open-questions/example": ["@open-questions/example@workspace:apps/example"],
+
     "@openai/agents": ["@openai/agents@0.13.4", "", { "dependencies": { "@openai/agents-core": "0.13.4", "@openai/agents-openai": "0.13.4", "@openai/agents-realtime": "0.13.4", "debug": "^4.4.0", "openai": "^6.46.0" }, "peerDependencies": { "zod": "^4.0.0" } }, "sha512-rW8Z+/gueHRyH4GyQzgjlG1FWFdf0DJuLqzpBnugSVYIAaLRfkeagh90m/S1Tt+Fy8bj4sYIUyovz6oFOF2k3A=="],
 
     "@openai/agents-core": ["@openai/agents-core@0.13.4", "", { "dependencies": { "debug": "^4.4.0", "openai": "^6.46.0" }, "optionalDependencies": { "@modelcontextprotocol/sdk": "^1.26.0" }, "peerDependencies": { "zod": "^4.0.0" }, "optionalPeers": ["zod"] }, "sha512-6TKt2RCftvD7oK3xEUlMnvbCstom85L4pVSRGcTKUP4I2/eQtdRLeP9gc1ExCfLtc4iARrgReQw0kWQ1qpIN3Q=="],
@@ -449,12 +455,6 @@
     "@universal-middleware/h3": ["@universal-middleware/h3@0.4.17", "", { "dependencies": { "@universal-middleware/core": "^0.4.17" } }, "sha512-Zx01aG9nt7DaQLEX7CarXFfJhafSDwNp6wHghCo2DZJqtX5lvfUix0ah76CFxKfpKfhaa4Fisx2evzYrZYn4rw=="],
 
     "@universal-middleware/node": ["@universal-middleware/node@0.1.0", "", { "dependencies": { "@universal-middleware/core": "^0.4.17" } }, "sha512-I03mkOhw0Ka28MtALkpoGJYE8YYSJxmq/iambaqKGXxlFXgLI/VXlw0LmX9iansUzbolNq4hWFMfHyNp2xb4jA=="],
-
-    "@unsolved-problems/api": ["@unsolved-problems/api@workspace:apps/api"],
-
-    "@unsolved-problems/client": ["@unsolved-problems/client@workspace:apps/client"],
-
-    "@unsolved-problems/example": ["@unsolved-problems/example@workspace:apps/example"],
 
     "@vikejs/h3": ["@vikejs/h3@0.2.0", "", { "dependencies": { "@universal-middleware/h3": "^0.4.17" }, "peerDependencies": { "h3": "^1.0.0", "vike": "^0.4.255" } }, "sha512-yAv903ZrZPJ9K2BzX/9gyVEnbVmWi2kxqfWmGKqjRxfW+E00Mh3nZzM2IMoJoqff9MqWYUw+jRD/3h/EbJOXhw=="],
 

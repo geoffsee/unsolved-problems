@@ -72,7 +72,7 @@ function ViewSourceButton(props: { onClick: () => void }) {
 			gap="4px"
 		>
 			<a
-				href="https://github.com/geoffsee/unsolved-problems"
+				href="https://github.com/geoffsee/open-questions"
 				target="_blank"
 				rel="noopener noreferrer"
 			>

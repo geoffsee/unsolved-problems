@@ -63,7 +63,7 @@ describe("openai resolveChosenProblemId", () => {
 				specificProblemId: null,
 				candidateIds: [],
 			}),
-		).toThrow("UNSOLVED_PROBLEM_ID is required");
+		).toThrow("OPEN_QUESTIONS_PROBLEM_ID is required");
 	});
 
 	test("picks randomly from candidates", () => {

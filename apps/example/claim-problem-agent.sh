@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MCP_URL="${UNSOLVED_MCP_URL:-https://unsolved-problems-api.seemueller.workers.dev/mcp}"
-PROVIDER="${UNSOLVED_PROVIDER:-openai}"
+MCP_URL="${OPEN_QUESTIONS_MCP_URL:-https://unsolved-problems-api.seemueller.workers.dev/mcp}"
+PROVIDER="${OPEN_QUESTIONS_PROVIDER:-openai}"
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required." >&2
   exit 1
 fi
 
-if [[ -z "${UNSOLVED_API_TOKEN:-}" ]]; then
-  echo "UNSOLVED_API_TOKEN is required." >&2
-  echo "Sign in with GitHub at https://geoffsee.github.io/unsolved-problems, create an API token, and export it." >&2
+if [[ -z "${OPEN_QUESTIONS_API_TOKEN:-}" ]]; then
+  echo "OPEN_QUESTIONS_API_TOKEN is required." >&2
+  echo "Sign in with GitHub at https://geoffsee.github.io/open-questions, create an API token, and export it." >&2
   exit 1
 fi
 
@@ -38,7 +38,7 @@ case "${PROVIDER}" in
     start_script="start:cursor"
     ;;
   *)
-    echo "UNSOLVED_PROVIDER must be openai, anthropic, or cursor (got: ${PROVIDER})." >&2
+    echo "OPEN_QUESTIONS_PROVIDER must be openai, anthropic, or cursor (got: ${PROVIDER})." >&2
     exit 1
     ;;
 esac
@@ -59,7 +59,7 @@ fi
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
-base_url="https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/apps/example"
+base_url="https://raw.githubusercontent.com/geoffsee/open-questions/master/apps/example"
 mkdir -p "${tmp_dir}/src"
 
 curl -fsSL "${base_url}/package.json" -o "${tmp_dir}/package.json"
@@ -82,19 +82,19 @@ do
   curl -fsSL "${base_url}/${rel}" -o "${tmp_dir}/${rel}"
 done
 
-pick_mode="${UNSOLVED_PICK_MODE:-}"
-problem_id="${UNSOLVED_PROBLEM_ID:-}"
-user_goal="${UNSOLVED_USER_GOAL:-}"
-user_background="${UNSOLVED_USER_BACKGROUND:-}"
-user_constraints="${UNSOLVED_USER_CONSTRAINTS:-}"
-user_context="${UNSOLVED_USER_CONTEXT:-}"
+pick_mode="${OPEN_QUESTIONS_PICK_MODE:-}"
+problem_id="${OPEN_QUESTIONS_PROBLEM_ID:-}"
+user_goal="${OPEN_QUESTIONS_USER_GOAL:-}"
+user_background="${OPEN_QUESTIONS_USER_BACKGROUND:-}"
+user_constraints="${OPEN_QUESTIONS_USER_CONSTRAINTS:-}"
+user_context="${OPEN_QUESTIONS_USER_CONTEXT:-}"
 
 fetch_shortlist() {
   curl -fsSL -X POST "${MCP_URL}" \
     -H "content-type: application/json" \
     -H "accept: application/json, text/event-stream" \
     -H "mcp-protocol-version: 2025-03-26" \
-    -H "authorization: Bearer ${UNSOLVED_API_TOKEN}" \
+    -H "authorization: Bearer ${OPEN_QUESTIONS_API_TOKEN}" \
     --data '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_problems","arguments":{"limit":8,"status":"available"}}}'
 }
 
@@ -183,12 +183,12 @@ echo "Bootstrapping agent in ${tmp_dir}..."
 (
   cd "${tmp_dir}"
   bun install --silent
-  UNSOLVED_MCP_URL="${MCP_URL}" \
-  UNSOLVED_PICK_MODE="${pick_mode}" \
-  UNSOLVED_PROBLEM_ID="${problem_id}" \
-  UNSOLVED_USER_GOAL="${user_goal}" \
-  UNSOLVED_USER_BACKGROUND="${user_background}" \
-  UNSOLVED_USER_CONSTRAINTS="${user_constraints}" \
-  UNSOLVED_USER_CONTEXT="${user_context}" \
+  OPEN_QUESTIONS_MCP_URL="${MCP_URL}" \
+  OPEN_QUESTIONS_PICK_MODE="${pick_mode}" \
+  OPEN_QUESTIONS_PROBLEM_ID="${problem_id}" \
+  OPEN_QUESTIONS_USER_GOAL="${user_goal}" \
+  OPEN_QUESTIONS_USER_BACKGROUND="${user_background}" \
+  OPEN_QUESTIONS_USER_CONSTRAINTS="${user_constraints}" \
+  OPEN_QUESTIONS_USER_CONTEXT="${user_context}" \
   bun run "${start_script}"
 )

@@ -3,7 +3,7 @@
 # Exit on error
 set -e
 
-echo "--- Building Unsolved Problems Explorer ---"
+echo "--- Building Open Questions ---"
 
 # Step 1: Install root dependencies (required for data fetching scripts)
 echo "Installing root dependencies..."

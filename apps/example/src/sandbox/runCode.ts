@@ -91,7 +91,7 @@ export function isBlockedSandboxEnvKey(key: string): boolean {
 		key === "OPENAI_API_KEY" ||
 		key === "ANTHROPIC_API_KEY" ||
 		key === "CURSOR_API_KEY" ||
-		key === "UNSOLVED_API_TOKEN" ||
+		key === "OPEN_QUESTIONS_API_TOKEN" ||
 		key === "GITHUB_TOKEN" ||
 		key === "GH_TOKEN"
 	);

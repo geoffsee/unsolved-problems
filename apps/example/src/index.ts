@@ -14,21 +14,21 @@ import { saveUsageArtifact } from "./usageArtifact";
 const log = createLogger({ agent: "openai" });
 
 const MCP_URL =
-	process.env.UNSOLVED_MCP_URL ||
+	process.env.OPEN_QUESTIONS_MCP_URL ||
 	"https://unsolved-problems-api.seemueller.workers.dev/mcp";
 const AGENT_ID =
-	process.env.UNSOLVED_AGENT_ID || `openai-agents-sdk-${Date.now()}`;
+	process.env.OPEN_QUESTIONS_AGENT_ID || `openai-agents-sdk-${Date.now()}`;
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-luna";
 const MODEL_SETTINGS = {
 	reasoning: { effort: "low" as const },
 };
 const LEASE_MINUTES = 60;
-const PICK_MODE = process.env.UNSOLVED_PICK_MODE || "random";
-const SPECIFIC_PROBLEM_ID = process.env.UNSOLVED_PROBLEM_ID || null;
-const USER_GOAL = process.env.UNSOLVED_USER_GOAL || "";
-const USER_BACKGROUND = process.env.UNSOLVED_USER_BACKGROUND || "";
-const USER_CONSTRAINTS = process.env.UNSOLVED_USER_CONSTRAINTS || "";
-const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
+const PICK_MODE = process.env.OPEN_QUESTIONS_PICK_MODE || "random";
+const SPECIFIC_PROBLEM_ID = process.env.OPEN_QUESTIONS_PROBLEM_ID || null;
+const USER_GOAL = process.env.OPEN_QUESTIONS_USER_GOAL || "";
+const USER_BACKGROUND = process.env.OPEN_QUESTIONS_USER_BACKGROUND || "";
+const USER_CONSTRAINTS = process.env.OPEN_QUESTIONS_USER_CONSTRAINTS || "";
+const USER_CONTEXT = process.env.OPEN_QUESTIONS_USER_CONTEXT || "";
 
 type ProblemClaim = {
 	claimId: string;
@@ -112,7 +112,9 @@ async function listAvailableProblemIds(
 }
 
 async function listCatalogCategories(mcpServer: MCPServerStreamableHttp) {
-	const catalogResource = await mcpServer.readResource("unsolved://catalog");
+	const catalogResource = await mcpServer.readResource(
+		"open-questions://catalog",
+	);
 	const catalogJson = catalogResource.contents.find(
 		(item) => "text" in item,
 	)?.text;
@@ -251,9 +253,9 @@ async function main() {
 		userGoal: USER_GOAL || null,
 	});
 
-	const apiToken = process.env.UNSOLVED_API_TOKEN?.trim();
+	const apiToken = process.env.OPEN_QUESTIONS_API_TOKEN?.trim();
 	const mcpServer = new MCPServerStreamableHttp({
-		name: "unsolved-problems",
+		name: "open-questions",
 		url: MCP_URL,
 		cacheToolsList: true,
 		...(apiToken
@@ -294,7 +296,9 @@ async function main() {
 		);
 
 		log.info("reading queue resource");
-		const queueResource = await mcpServer.readResource("unsolved://queue");
+		const queueResource = await mcpServer.readResource(
+			"open-questions://queue",
+		);
 		const queueJson = queueResource.contents.find(
 			(item) => "text" in item,
 		)?.text;
@@ -327,7 +331,7 @@ async function main() {
 
 		log.info("reading problem resource", { problemId: chosenProblemId });
 		const problemResource = await mcpServer.readResource(
-			`unsolved://problem/${chosenProblemId}`,
+			`open-questions://problem/${chosenProblemId}`,
 		);
 		const problemJson = problemResource.contents.find(
 			(item) => "text" in item,

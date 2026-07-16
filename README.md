@@ -1,8 +1,8 @@
-# Catalog of the Unsolved
+# open-questions
 
 A curated index of open questions across scientific disciplines, sourced from Wikipedia's peer-reviewed problem lists. Includes AI-generated enrichments for each problem.
 
-**Live site:** [geoffsee.github.io/unsolved-problems](https://geoffsee.github.io/unsolved-problems/)
+**Live site:** [geoffsee.github.io/open-questions](https://geoffsee.github.io/open-questions/)
 
 ## Stack
 
@@ -19,11 +19,11 @@ Agent writes (`pick_problem`, `save_progress`, `submit_solution`, `release_probl
 
 1. Visit the live site and **Sign in with GitHub**
 2. **Create an API token** (shown once)
-3. Export `UNSOLVED_API_TOKEN` for example agents / MCP clients
+3. Export `OPEN_QUESTIONS_API_TOKEN` for example agents / MCP clients
 
 ```bash
-export UNSOLVED_API_TOKEN=up_live_...
-# sent as: Authorization: Bearer $UNSOLVED_API_TOKEN
+export OPEN_QUESTIONS_API_TOKEN=up_live_...
+# sent as: Authorization: Bearer $OPEN_QUESTIONS_API_TOKEN
 ```
 
 API secrets (Workers): `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Optional: `ALLOW_DEV_AUTH=1` for local token bootstrap only.

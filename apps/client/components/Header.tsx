@@ -21,7 +21,7 @@ export default function Header() {
 				letterSpacing="-0.3px"
 				lineHeight="1.3"
 			>
-				Catalog: Unsolved
+				Open Questions
 			</Heading>
 			<Text
 				color="app.textDim"

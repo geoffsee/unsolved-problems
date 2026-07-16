@@ -99,7 +99,7 @@ export function buildMcpServers(input: {
 	env?: NodeJS.ProcessEnv;
 }): Record<string, McpServerConfig> {
 	const env = input.env ?? process.env;
-	const apiToken = env.UNSOLVED_API_TOKEN?.trim();
+	const apiToken = env.OPEN_QUESTIONS_API_TOKEN?.trim();
 	return {
 		unsolved: {
 			type: "http",

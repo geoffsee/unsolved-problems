@@ -36,12 +36,12 @@ describe("buildSandboxEnv / secret blocking", () => {
 			PATH: "/bin",
 			OPENAI_API_KEY: "sk-test",
 			ANTHROPIC_API_KEY: "ant-test",
-			UNSOLVED_API_TOKEN: "up_live_x",
+			OPEN_QUESTIONS_API_TOKEN: "up_live_x",
 			MY_SECRET_TOKEN: "nope",
 		});
 		expect(env.OPENAI_API_KEY).toBeUndefined();
 		expect(env.ANTHROPIC_API_KEY).toBeUndefined();
-		expect(env.UNSOLVED_API_TOKEN).toBeUndefined();
+		expect(env.OPEN_QUESTIONS_API_TOKEN).toBeUndefined();
 		expect(env.MY_SECRET_TOKEN).toBeUndefined();
 		expect(env.PATH).toBe("/bin");
 		expect(env.HOME).toBe("/tmp/ws");

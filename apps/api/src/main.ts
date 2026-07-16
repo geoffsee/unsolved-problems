@@ -146,7 +146,7 @@ const DEFAULT_PICK_LIMIT = 25;
 const MAX_PICK_LIMIT = 100;
 const DEFAULT_LEASE_MINUTES = 120;
 const MAX_LEASE_MINUTES = 7 * 24 * 60;
-const DEFAULT_PAGES_ORIGIN = "https://geoffsee.github.io/unsolved-problems";
+const DEFAULT_PAGES_ORIGIN = "https://geoffsee.github.io/open-questions";
 const DEFAULT_SEARXNG_ORIGIN = "https://searxng.seemueller.io";
 
 type SearxngResult = {
@@ -179,7 +179,7 @@ function getLocalStatePath() {
 		}
 
 		return (
-			process.env.UNSOLVED_STATE_PATH ||
+			process.env.OPEN_QUESTIONS_STATE_PATH ||
 			fileURLToPath(new URL("../data/agent-queue.json", metaUrl))
 		);
 	} catch {
@@ -483,7 +483,7 @@ async function fetchJson<T>(pathname: string, env?: Bindings): Promise<T> {
 	const response = await fetch(url, {
 		headers: {
 			accept: "application/json",
-			"user-agent": "unsolved-problems-mcp/1.0",
+			"user-agent": "open-questions-mcp/1.0",
 		},
 	});
 
@@ -512,7 +512,7 @@ async function searchSearxng(input: {
 	const response = await fetch(url, {
 		headers: {
 			accept: "application/json",
-			"user-agent": "unsolved-problems-mcp/1.0",
+			"user-agent": "open-questions-mcp/1.0",
 		},
 	});
 
@@ -937,7 +937,7 @@ function createMcpServer(
 	principal: AuthenticatedPrincipal | null = null,
 ) {
 	const server = new McpServer({
-		name: "unsolved-problems",
+		name: "open-questions",
 		version: APP_VERSION,
 	});
 
@@ -951,10 +951,10 @@ function createMcpServer(
 
 	server.registerResource(
 		"catalog",
-		"unsolved://catalog",
+		"open-questions://catalog",
 		{
 			title: "Problem catalog",
-			description: "Summary metadata for the unsolved-problems queue.",
+			description: "Summary metadata for the open-questions queue.",
 			mimeType: "application/json",
 		},
 		async (uri) => {
@@ -980,7 +980,7 @@ function createMcpServer(
 
 	server.registerResource(
 		"queue",
-		"unsolved://queue",
+		"open-questions://queue",
 		{
 			title: "Queue state",
 			description:
@@ -1000,7 +1000,9 @@ function createMcpServer(
 
 	server.registerResource(
 		"problem",
-		new ResourceTemplate("unsolved://problem/{problemId}", { list: undefined }),
+		new ResourceTemplate("open-questions://problem/{problemId}", {
+			list: undefined,
+		}),
 		{
 			title: "Problem detail",
 			description: "Detailed metadata for a single problem.",
@@ -1874,9 +1876,9 @@ app.get("/", (c) =>
 				"list_claims",
 			],
 			resources: [
-				"unsolved://catalog",
-				"unsolved://queue",
-				"unsolved://problem/{problemId}",
+				"open-questions://catalog",
+				"open-questions://queue",
+				"open-questions://problem/{problemId}",
 			],
 			prompts: ["work_problem"],
 		},
@@ -2149,7 +2151,7 @@ app.get("/data/*", async (c) => {
 	const upstream = await fetch(upstreamUrl, {
 		headers: {
 			accept: "application/json",
-			"user-agent": "unsolved-problems-json-proxy/1.0",
+			"user-agent": "open-questions-json-proxy/1.0",
 		},
 	});
 

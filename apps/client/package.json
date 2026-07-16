@@ -1,5 +1,5 @@
 {
-	"name": "@unsolved-problems/client",
+	"name": "@open-questions/client",
 	"scripts": {
 		"dev": "vike dev",
 		"build": "vike build",

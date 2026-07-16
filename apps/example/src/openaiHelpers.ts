@@ -63,7 +63,7 @@ export function resolveChosenProblemId(input: {
 	if (input.pickMode === "specific") {
 		if (!input.specificProblemId) {
 			throw new Error(
-				"UNSOLVED_PROBLEM_ID is required when UNSOLVED_PICK_MODE=specific.",
+				"OPEN_QUESTIONS_PROBLEM_ID is required when OPEN_QUESTIONS_PICK_MODE=specific.",
 			);
 		}
 

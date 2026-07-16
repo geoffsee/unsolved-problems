@@ -7,5 +7,5 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
 	plugins: [vike(), react(), telefunc()],
-	base: "/unsolved-problems/",
+	base: "/open-questions/",
 });

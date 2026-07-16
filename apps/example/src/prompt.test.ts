@@ -33,7 +33,7 @@ describe("buildPickInstructions", () => {
 	test("requires a problem id for specific mode", () => {
 		expect(() =>
 			buildPickInstructions({ pickMode: "specific", specificProblemId: null }),
-		).toThrow("UNSOLVED_PROBLEM_ID is required");
+		).toThrow("OPEN_QUESTIONS_PROBLEM_ID is required");
 	});
 
 	test("names the exact problem in specific mode", () => {

@@ -27,18 +27,18 @@ import {
 const log = createLogger({ agent: "anthropic" });
 
 const MCP_URL =
-	process.env.UNSOLVED_MCP_URL ||
+	process.env.OPEN_QUESTIONS_MCP_URL ||
 	"https://unsolved-problems-api.seemueller.workers.dev/mcp";
 const AGENT_ID =
-	process.env.UNSOLVED_AGENT_ID || `claude-agent-sdk-${Date.now()}`;
+	process.env.OPEN_QUESTIONS_AGENT_ID || `claude-agent-sdk-${Date.now()}`;
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const LEASE_MINUTES = 60;
-const PICK_MODE = process.env.UNSOLVED_PICK_MODE || "agent";
-const SPECIFIC_PROBLEM_ID = process.env.UNSOLVED_PROBLEM_ID || null;
-const USER_GOAL = process.env.UNSOLVED_USER_GOAL || "";
-const USER_BACKGROUND = process.env.UNSOLVED_USER_BACKGROUND || "";
-const USER_CONSTRAINTS = process.env.UNSOLVED_USER_CONSTRAINTS || "";
-const USER_CONTEXT = process.env.UNSOLVED_USER_CONTEXT || "";
+const PICK_MODE = process.env.OPEN_QUESTIONS_PICK_MODE || "agent";
+const SPECIFIC_PROBLEM_ID = process.env.OPEN_QUESTIONS_PROBLEM_ID || null;
+const USER_GOAL = process.env.OPEN_QUESTIONS_USER_GOAL || "";
+const USER_BACKGROUND = process.env.OPEN_QUESTIONS_USER_BACKGROUND || "";
+const USER_CONSTRAINTS = process.env.OPEN_QUESTIONS_USER_CONSTRAINTS || "";
+const USER_CONTEXT = process.env.OPEN_QUESTIONS_USER_CONTEXT || "";
 
 // A .mcp.json at the project root (cwd) is materialized from the MCP_CONFIG
 // secret in CI. The Agent SDK only loads it when the "project" setting source
@@ -259,9 +259,9 @@ async function main() {
 					url: MCP_URL,
 					headers: {
 						Accept: "application/json, text/event-stream",
-						...(process.env.UNSOLVED_API_TOKEN
+						...(process.env.OPEN_QUESTIONS_API_TOKEN
 							? {
-									Authorization: `Bearer ${process.env.UNSOLVED_API_TOKEN}`,
+									Authorization: `Bearer ${process.env.OPEN_QUESTIONS_API_TOKEN}`,
 								}
 							: {}),
 					},
