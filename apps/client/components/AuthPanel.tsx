@@ -250,6 +250,14 @@ export default function AuthPanel() {
 										<Button
 											size="sm"
 											variant="outline"
+											bg="transparent"
+											color={copied ? "#92d6a3" : "app.accent"}
+											borderColor={copied ? "#92d6a3" : "app.borderLight"}
+											_hover={{
+												bg: "rgba(255,255,255,0.06)",
+												borderColor: "app.accent",
+												color: "app.accentHover",
+											}}
 											onClick={() => void copyToken()}
 										>
 											{copied ? "Copied" : "Copy token"}

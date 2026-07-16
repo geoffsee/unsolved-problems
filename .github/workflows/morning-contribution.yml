@@ -47,6 +47,8 @@ jobs:
         run: bun run start:anthropic
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # GitHub-backed contributor token from the Catalog site (Authorization: Bearer).
+          UNSOLVED_API_TOKEN: ${{ secrets.UNSOLVED_API_TOKEN }}
           UNSOLVED_MCP_URL: https://unsolved-problems-api.seemueller.workers.dev/mcp
           UNSOLVED_AGENT_ID: github-actions-morning
           UNSOLVED_PICK_MODE: random
