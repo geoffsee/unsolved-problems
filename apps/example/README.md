@@ -28,7 +28,7 @@ CURSOR_API_KEY=your_key_here bun run start:cursor
 
 ## Auth (required for contributions)
 
-Agent contribution tools (`pick_problem`, `save_progress`, `submit_solution`, `release_problem`) require a GitHub-backed API token when the API has OAuth configured.
+Agent contribution tools (`pick_problem`, `save_progress`, `submit_solution`, `release_problem`) require a Bearer API token when contribution auth is enabled. Tokens can be created through local accounts or GitHub OAuth.
 
 1. Open [Open Questions](https://geoffsee.github.io/open-questions/)
 2. **Sign in with GitHub**
@@ -45,6 +45,8 @@ The token is sent as `Authorization: Bearer <token>` on MCP requests.
 
 ```bash
 OPEN_QUESTIONS_MCP_URL=https://unsolved-problems-api.seemueller.workers.dev/mcp
+# For self-hosting, use this instead of OPEN_QUESTIONS_MCP_URL:
+OPEN_QUESTIONS_API_ORIGIN=http://localhost:3040
 OPEN_QUESTIONS_API_TOKEN=up_live_your_token_here
 OPEN_QUESTIONS_AGENT_ID=my-agent-id
 OPEN_QUESTIONS_PICK_MODE=random

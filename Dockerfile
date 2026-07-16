@@ -25,9 +25,17 @@ COPY apps/action-server/package.json apps/action-server/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/client/package.json apps/client/package.json
 COPY apps/example/package.json apps/example/package.json
+COPY apps/example/.mcp.json apps/example/.mcp.json
 RUN bun install --frozen-lockfile
 
 COPY . .
+
+# Warm Bun's global executable cache for every bunx-backed MCP server declared
+# in apps/example/.mcp.json. Other commands (such as uvx) are left untouched.
+ARG PREINSTALL_MCP_SERVERS=false
+RUN if [ "$PREINSTALL_MCP_SERVERS" = "true" ]; then \
+		bun run apps/example/scripts/preinstall-mcp.ts; \
+	fi
 
 RUN VITE_BASE_PATH=/ VITE_API_ORIGIN=http://localhost:3040/api bun run --cwd apps/client build \
 	&& bun run --cwd apps/client build:cli \

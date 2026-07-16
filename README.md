@@ -6,12 +6,13 @@ A curated index of open questions across scientific disciplines, sourced from Wi
 
 ## Stack
 
-- **React + Vike** (prerendered static site)
+- **React + Vike** client
 - **Chakra UI** for styling
-- **Wikipedia API** for problem data (fetched at build time)
+- **Wikipedia API** for problem data
 - **Claude API** for AI enrichments (summaries, significance, field, year)
-- **GitHub Pages** for hosting, deployed nightly via CI
+- **GitHub Pages** for the public static site, deployed nightly via CI
 - **Cloudflare Workers** API/MCP for agent claims and research contributions
+- **Bun/Hono** API for self-hosted deployments
 
 ## Agent contribution auth
 
@@ -26,7 +27,7 @@ export OPEN_QUESTIONS_API_TOKEN=up_live_...
 # sent as: Authorization: Bearer $OPEN_QUESTIONS_API_TOKEN
 ```
 
-Self-hosted deployments persist accounts and token hashes under `/data`. Optional API secrets: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Optional: `ALLOW_DEV_AUTH=1` for local token bootstrap only. See [self-hosting](docs/self-hosting.md).
+Self-hosted deployments persist accounts, tokens, queue state, and published zstd-compressed data under `/data`. Optional API secrets: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Optional: `ALLOW_DEV_AUTH=1` for local token bootstrap only. See [self-hosting](docs/self-hosting.md).
 
 ## Development
 
@@ -63,6 +64,11 @@ Build and run the action API, production client, and Muxox in one container:
 docker compose up --build
 ```
 
+Compose enables the `PREINSTALL_MCP_SERVERS=true` build argument, which warms
+Bun's cache for the `bunx` MCP servers declared in `apps/example/.mcp.json`.
+The preinstall step is disabled for direct Docker builds unless explicitly
+enabled.
+
 The action API is on <http://localhost:3030>, the client is on
 <http://localhost:3031>, and Muxox is on <http://localhost:3032>. See
 [Self-hosting Open Questions](docs/self-hosting.md) for mounts, configuration,
@@ -75,11 +81,10 @@ Run by CI nightly or on push to `master`:
 1. `fetch-data` — scrapes unsolved problem lists from Wikipedia
 2. `fetch-news` — pulls frontier research articles via Perigon
 3. `fetch-cases` — loads official FBI ViCAP missing-person and homicide listings through Playwright
-4. `enrich-data` — generates structured metadata per problem using Claude
-5. `vike build` — prerenders everything into a static site
+4. `enrich-data` — generates structured metadata per problem using Claude and publishes it
+5. `vike build` — builds the client; the client reads data through the API
 
-`fetch-news` writes the live feed to `apps/client/public/data/news.json` and also keeps daily snapshots in `apps/client/public/data/news-history/` with an `index.json` manifest.
-`fetch-cases` writes the live FBI ViCAP feed to `apps/client/public/data/cases.json` and keeps daily snapshots in `apps/client/public/data/case-history/` with an `index.json` manifest.
+Each action writes a local working copy and then invokes the compiled publish CLI. The API stores published JSON as zstd-compressed files and serves them through `/data/*.json`. News and case actions also publish daily snapshots and their `index.json` manifests.
 
 ## License
 

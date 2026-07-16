@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PREINSTALL_MCP_SERVERS: "true"
     image: ghcr.io/geoffsee/open-questions:latest
     init: true
     restart: unless-stopped

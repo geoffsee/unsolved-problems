@@ -26,12 +26,20 @@ From the repository root:
 docker compose up --build -d
 ```
 
+The Compose build sets `PREINSTALL_MCP_SERVERS=true`, dynamically preinstalling
+the `bunx` MCP servers declared in `apps/example/.mcp.json`. To skip this step,
+use a direct Docker build without the argument; to enable it explicitly:
+
+```bash
+docker build --build-arg PREINSTALL_MCP_SERVERS=true -t open-questions-actions .
+```
+
 Open the client at <http://localhost:3031> and Muxox at
 <http://localhost:3032>. Check the API at <http://localhost:3030/health>.
 
 The root `compose.yml` mounts `.github` read-only and stores SQLite data in
 the named `open-questions_action-data` volume. Place secrets and workflow
-environment values in the ignored optional `.env.actions` file.
+environment values in the ignored optional `.env.open-questions` file.
 
 ## Run with Docker
 
@@ -43,14 +51,14 @@ docker run --detach \
   --publish 3031:3031 \
   --publish 3032:3032 \
   --publish 3040:3040 \
-  --env-file .env.actions \
+  --env-file .env.open-questions \
   --volume "$PWD/.github:/workspace/.github:ro" \
   --volume open-questions-action-data:/data \
   --restart unless-stopped \
   ghcr.io/geoffsee/open-questions
 ```
 
-Omit `--env-file .env.actions` when the file is not needed.
+Omit `--env-file .env.open-questions` when the file is not needed.
 
 ## Configuration
 
@@ -66,6 +74,9 @@ Omit `--env-file .env.actions` when the file is not needed.
 | `DATABASE_URL` | `sqlite:///data/local-action.sqlite` | Run and cron state |
 | `DATABASE_PATH` | `/data/open-questions.sqlite` | Application queue + auth SQLite store |
 | `API_TOKEN` | unset | Optional bearer token protecting API routes except health |
+| `PUBLISH_KEY` | unset | Bearer secret required by the data publish endpoint |
+| `PUBLISH_API_ORIGIN` | `http://localhost:3040/api` | API origin used by the compiled publish CLI |
+| `PUBLISH_DATA_DIR` | `data/published` | Directory containing published `.json.zst` files |
 
 The application API is available at `http://localhost:3040`. Its user-facing
 auth and API-key endpoints are under `/auth`; the action API remains at
@@ -91,6 +102,10 @@ writes are gated.
 Auth data (accounts, sessions, API token hashes) lives in the `/data` volume
 through `DATABASE_PATH=/data/open-questions.sqlite`. Deleting the volume wipes
 local accounts and issued tokens.
+
+Data actions publish through the compiled `open-questions-publish` CLI. Set
+`PUBLISH_KEY` in `.env.open-questions`; the API stores published data as zstd
+compressed files under `PUBLISH_DATA_DIR` and serves it at `/data/*.json`.
 
 ## Local account quick start
 

@@ -90,13 +90,14 @@ docker compose up --build
 
 The root [`compose.yml`](../../compose.yml) publishes the action API on `3030`,
 the client on `3031`, and Muxox on `3032`. It also mounts `.github`, persists
-SQLite data, and loads an optional ignored `.env.actions` file containing action
+SQLite data, and loads an optional ignored `.env.open-questions` file containing action
 secrets and environment values.
 
 The equivalent direct Docker commands are:
 
 ```bash
-docker build -t open-questions-actions .
+docker build --build-arg PREINSTALL_MCP_SERVERS=true \
+  -t open-questions-actions .
 
 docker run --rm \
   --name open-questions-actions \
@@ -104,14 +105,14 @@ docker run --rm \
   --publish 3031:3031 \
   --publish 3032:3032 \
   --env API_TOKEN=change-me \
-  --env-file .env.actions \
+  --env-file .env.open-questions \
   --volume "$PWD/.github:/workspace/.github:ro" \
   --volume open-questions-action-data:/data \
   open-questions-actions
 ```
 
 The named `/data` volume persists run history and cron claims. Variables in
-`.env.actions` provide values for `${{ secrets.NAME }}` and `${{ env.NAME }}`
+`.env.open-questions` provides values for `${{ secrets.NAME }}` and `${{ env.NAME }}`
 references when cron runs locally.
 
 The Docker smoke-test action also needs access to a Docker daemon. Add these
