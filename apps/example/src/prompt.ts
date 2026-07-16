@@ -76,9 +76,12 @@ export function buildCatalogPrompt(input: {
 		input.variant === "cursor"
 			? [
 					"Prefer the configured research MCP tools (searxng, fetch, openalex, crossref, playwright) over editing local files.",
+					"Use the code_sandbox MCP run_code tool to write and execute short python/javascript/typescript snippets when a calculation, simulation, or prototype would test an idea.",
 					"Do not modify repository source files. Do not open a PR.",
 				]
-			: [];
+			: [
+					"Use the code_sandbox run_code tool to write and execute short python/javascript/typescript snippets when a calculation, simulation, or prototype would test an idea.",
+				];
 
 	const researchStep =
 		input.variant === "anthropic"
@@ -99,18 +102,20 @@ export function buildCatalogPrompt(input: {
 		`1. Select one available problem according to the pick instructions.`,
 		`2. Call pick_problem with agentId=${input.agentId}, leaseMinutes=${input.leaseMinutes}, and the chosen problemId.`,
 		researchStep,
-		"4. Call save_progress exactly once with a durable research contribution, not a generic plan or status report:",
+		"4. When a numerical check, simulation, counterexample search, or small prototype would strengthen the note, call run_code in the sandbox (clean env, timed, ephemeral workspace) and fold the outcome into your contribution.",
+		"5. Call save_progress exactly once with a durable research contribution, not a generic plan or status report:",
 		"   - choose the most accurate kind (reference, hypothesis, failed_attempt, candidate_approach, or note)",
 		"   - use a specific title that says what was learned or proposed",
 		"   - in content, state a concrete claim or result, its supporting basis, the main limitation, and the next discriminating test",
 		"   - put the exact best source URL you found in artifactUrl; if no credible source was found, say so explicitly and do not use kind=reference",
+		"   - if you ran sandbox code, briefly report what was tested and the observed result",
 		"   - do not claim the open problem is solved",
-		"5. Stop after saving progress. Do not call submit_solution or release_problem.",
+		"6. Stop after saving progress. Do not call submit_solution or release_problem.",
 		"",
 		input.userBrief
 			? `User brief:\n${input.userBrief}`
 			: "User brief: none supplied.",
 		"",
-		"When finished, reply with a compact plain-text summary including problemId, claim outcome, and whether save_progress succeeded.",
+		"When finished, reply with a compact plain-text summary including problemId, claim outcome, whether sandbox code was run, and whether save_progress succeeded.",
 	].join("\n");
 }

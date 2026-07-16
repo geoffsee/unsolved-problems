@@ -118,6 +118,12 @@ describe("cursor buildMcpServers", () => {
 				Accept: "application/json, text/event-stream",
 			},
 		});
+		expect(servers.code_sandbox).toEqual({
+			type: "stdio",
+			command: "bun",
+			args: ["run", "src/sandbox/mcpServer.ts"],
+			cwd,
+		});
 		expect(servers.fetch?.type).toBe("stdio");
 	});
 

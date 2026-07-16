@@ -78,8 +78,28 @@ All runners will:
 1. Connect to the deployed Worker MCP server.
 2. Claim one available problem.
 3. Search for a credible primary source or authoritative review.
-4. Save a structured research update with the exact best source URL, a limitation, and a next discriminating step.
-5. Print a JSON summary of the run.
+4. Optionally write and run **sandboxed code** (Python / JavaScript / TypeScript) to test calculations, simulations, or prototypes.
+5. Save a structured research update with the exact best source URL, a limitation, and a next discriminating step.
+6. Print a JSON summary of the run.
+
+## Sandboxed code execution
+
+Agents can execute short programs while researching without access to host secrets or the repository:
+
+| Provider | How `run_code` is exposed |
+| --- | --- |
+| OpenAI | Function tool on the research agent |
+| Anthropic | In-process MCP server `code_sandbox` |
+| Cursor | Stdio MCP server (`bun run start:sandbox-mcp`) |
+
+Sandbox properties:
+
+- Ephemeral temp workspace (deleted after each run)
+- Clean environment (API keys / tokens are not forwarded)
+- Hard wall-clock timeout (default 30s, max 120s)
+- Supported languages: `python`, `javascript`, `typescript`
+
+Optional: set `SANDBOX_JS_RUNTIME=node` to force Node for JavaScript instead of Bun.
 
 ## Curl bootstrap
 

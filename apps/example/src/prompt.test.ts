@@ -77,6 +77,8 @@ describe("buildCatalogPrompt", () => {
 		);
 		expect(prompt).toContain("leaseMinutes=60");
 		expect(prompt).toContain("User brief:\nDesired outcome: useful note");
+		expect(prompt).toContain("code_sandbox run_code tool");
+		expect(prompt).toContain("call run_code in the sandbox");
 		expect(prompt).not.toContain("Do not open a PR.");
 	});
 
@@ -87,6 +89,8 @@ describe("buildCatalogPrompt", () => {
 			"Do not modify repository source files. Do not open a PR.",
 		);
 		expect(prompt).toContain("configured research tools");
+		expect(prompt).toContain("code_sandbox MCP run_code tool");
+		expect(prompt).toContain("whether sandbox code was run");
 		expect(prompt).toContain("save_progress succeeded");
 	});
 
@@ -116,5 +120,6 @@ describe("buildCatalogPrompt", () => {
 		expect(prompt).toContain("Call pick_problem with agentId=agent-1");
 		expect(prompt).toContain("save_progress exactly once");
 		expect(prompt).toContain("Do not call submit_solution or release_problem.");
+		expect(prompt).toContain("if you ran sandbox code");
 	});
 });

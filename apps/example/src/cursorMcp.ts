@@ -81,6 +81,18 @@ export function loadResearchMcpServers(input: {
 	return servers;
 }
 
+export function resolveSandboxMcpServer(input: {
+	cwd: string;
+}): McpServerConfig {
+	// Prefer the package entry so bootstrap layouts and local checkouts both work.
+	return {
+		type: "stdio",
+		command: "bun",
+		args: ["run", "src/sandbox/mcpServer.ts"],
+		cwd: input.cwd,
+	};
+}
+
 export function buildMcpServers(input: {
 	mcpUrl: string;
 	cwd: string;
@@ -97,6 +109,7 @@ export function buildMcpServers(input: {
 				...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
 			},
 		},
+		code_sandbox: resolveSandboxMcpServer({ cwd: input.cwd }),
 		...loadResearchMcpServers({ cwd: input.cwd, env }),
 	};
 }

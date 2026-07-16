@@ -15,6 +15,11 @@ import {
 import { buildCatalogPrompt, buildUserBrief } from "./prompt";
 import { resolveRuntimePick } from "./resolvePick";
 import {
+	ANTHROPIC_SANDBOX_ALLOWED_TOOLS,
+	createAnthropicSandboxMcpServer,
+	SANDBOX_MCP_SERVER_NAME,
+} from "./sandbox/tools";
+import {
 	extractProblemIdFromUnknown,
 	saveUsageArtifact,
 } from "./usageArtifact";
@@ -46,6 +51,8 @@ export const ALLOWED_MCP_TOOLS = [
 	`mcp__${MCP_SERVER}__pick_problem`,
 	`mcp__${MCP_SERVER}__save_progress`,
 	`mcp__${MCP_SERVER}__list_claims`,
+	// Ephemeral code execution for testing ideas (in-process SDK MCP).
+	...ANTHROPIC_SANDBOX_ALLOWED_TOOLS,
 	// Research tooling comes from the servers in .mcp.json, not unsolved.
 	"mcp__searxng",
 	"mcp__fetch",
@@ -245,7 +252,7 @@ async function main() {
 		options: {
 			model: MODEL,
 			systemPrompt:
-				"You are a careful research agent. Publish source-preserving, concrete research contributions rather than generic progress notes. Be skeptical and use MCP tools to claim work and save progress.",
+				"You are a careful research agent. Publish source-preserving, concrete research contributions rather than generic progress notes. Be skeptical and use MCP tools to claim work and save progress. When a calculation, simulation, or prototype would test an idea, use the code_sandbox run_code tool before saving progress.",
 			mcpServers: {
 				[MCP_SERVER]: {
 					type: "http",
@@ -259,6 +266,7 @@ async function main() {
 							: {}),
 					},
 				},
+				[SANDBOX_MCP_SERVER_NAME]: createAnthropicSandboxMcpServer(),
 			},
 			allowedTools: ALLOWED_MCP_TOOLS,
 			disallowedTools: [
@@ -274,7 +282,7 @@ async function main() {
 				"Skill",
 			],
 			permissionMode: "dontAsk",
-			maxTurns: 16,
+			maxTurns: 40,
 			settingSources: HAS_PROJECT_MCP_CONFIG ? ["project"] : [],
 			hooks: buildLoggingHooks(log),
 		},

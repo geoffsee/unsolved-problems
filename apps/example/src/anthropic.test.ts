@@ -7,6 +7,7 @@ describe("anthropic example", () => {
 		expect(ALLOWED_MCP_TOOLS).toContain("mcp__unsolved__list_problems");
 		expect(ALLOWED_MCP_TOOLS).toContain("mcp__unsolved__pick_problem");
 		expect(ALLOWED_MCP_TOOLS).toContain("mcp__unsolved__save_progress");
+		expect(ALLOWED_MCP_TOOLS).toContain("mcp__code_sandbox__run_code");
 		expect(ALLOWED_MCP_TOOLS).toContain("mcp__searxng");
 		expect(ALLOWED_MCP_TOOLS).toContain("mcp__playwright");
 	});
@@ -53,6 +54,7 @@ describe("anthropic example", () => {
 				"mcp__unsolved__pick_problem",
 				"mcp__unsolved__save_progress",
 				"mcp__unsolved__list_claims",
+				"mcp__code_sandbox__run_code",
 			]),
 		);
 	});

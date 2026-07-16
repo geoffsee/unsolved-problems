@@ -8,6 +8,7 @@ import {
 	SelectionSchema,
 } from "./openaiHelpers";
 import { buildUserBrief } from "./prompt";
+import { createOpenAISandboxTool } from "./sandbox/tools";
 import { saveUsageArtifact } from "./usageArtifact";
 
 const log = createLogger({ agent: "openai" });
@@ -355,19 +356,23 @@ async function main() {
 			userBrief: truncate(userBrief || null),
 		});
 
+		const sandboxTool = createOpenAISandboxTool();
 		const researcher = new Agent({
 			name: "Research Kickoff",
 			model: MODEL,
 			modelSettings: MODEL_SETTINGS,
 			mcpServers: [mcpServer],
+			tools: [sandboxTool],
 			outputType: ResearchCheckpointSchema,
 			instructions: [
 				"You are starting work on a newly claimed unsolved problem.",
 				"Follow the user's brief where it helps produce a better first pass.",
 				"Read any prior shared research before proposing the next step.",
 				"Use the search_web MCP tool to find a credible primary source or authoritative review before writing the update.",
+				"When a numerical check, simulation, counterexample search, or small prototype would strengthen the note, use the run_code tool to execute short python/javascript/typescript in an isolated sandbox, then fold the observed result into your contribution.",
 				"Produce a durable research contribution, not a generic plan or status report.",
 				"The content must state: (1) a concrete claim or result, (2) what supports it, (3) the main limitation or uncertainty, and (4) the next discriminating test or calculation.",
+				"If you ran sandbox code, briefly report what was tested and the outcome in content.",
 				"Choose the most accurate contribution kind. Use reference only when sourceUrl contains the referenced source.",
 				"Preserve the exact best source URL in sourceUrl. Use null only when the search returned no credible source, and say that explicitly in content.",
 				"Do not overclaim that a hard open problem is solved.",

@@ -34,6 +34,7 @@ describe("cursor example", () => {
 		});
 
 		expect(Object.keys(servers).sort()).toEqual([
+			"code_sandbox",
 			"crossref",
 			"fetch",
 			"openalex",
@@ -42,6 +43,11 @@ describe("cursor example", () => {
 			"unsolved",
 		]);
 		expect(servers.unsolved.type).toBe("http");
+		expect(servers.code_sandbox).toMatchObject({
+			type: "stdio",
+			command: "bun",
+			args: ["run", "src/sandbox/mcpServer.ts"],
+		});
 		expect(servers.searxng).toMatchObject({
 			type: "stdio",
 			command: "bunx",

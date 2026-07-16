@@ -63,11 +63,24 @@ base_url="https://raw.githubusercontent.com/geoffsee/unsolved-problems/master/ap
 mkdir -p "${tmp_dir}/src"
 
 curl -fsSL "${base_url}/package.json" -o "${tmp_dir}/package.json"
-curl -fsSL "${base_url}/src/index.ts" -o "${tmp_dir}/src/index.ts"
-curl -fsSL "${base_url}/src/anthropic.ts" -o "${tmp_dir}/src/anthropic.ts"
-curl -fsSL "${base_url}/src/cursor.ts" -o "${tmp_dir}/src/cursor.ts"
-curl -fsSL "${base_url}/src/logger.ts" -o "${tmp_dir}/src/logger.ts"
-curl -fsSL "${base_url}/src/usageArtifact.ts" -o "${tmp_dir}/src/usageArtifact.ts"
+mkdir -p "${tmp_dir}/src/sandbox"
+for rel in \
+  src/index.ts \
+  src/anthropic.ts \
+  src/cursor.ts \
+  src/cursorMcp.ts \
+  src/logger.ts \
+  src/openaiHelpers.ts \
+  src/prompt.ts \
+  src/resolvePick.ts \
+  src/usageArtifact.ts \
+  src/sandbox/constants.ts \
+  src/sandbox/runCode.ts \
+  src/sandbox/tools.ts \
+  src/sandbox/mcpServer.ts
+do
+  curl -fsSL "${base_url}/${rel}" -o "${tmp_dir}/${rel}"
+done
 
 pick_mode="${UNSOLVED_PICK_MODE:-}"
 problem_id="${UNSOLVED_PROBLEM_ID:-}"
