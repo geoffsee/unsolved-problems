@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/geoffsee/open-questions
+    image: ghcr.io/geoffsee/open-questions:latest
     init: true
     restart: unless-stopped
     ports:
