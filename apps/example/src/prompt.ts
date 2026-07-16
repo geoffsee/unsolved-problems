@@ -46,7 +46,7 @@ export function buildPickInstructions(input: {
 			"Call list_problems again with that category, status=available, and limit=25.",
 			"If the category is empty, pick a different category and retry.",
 			"Choose one of the returned problem IDs uniformly at random.",
-			"Do not bias toward the first item or toward astronomy.",
+			"Do not bias toward the first item or toward any particular category.",
 		].join("\n");
 	}
 

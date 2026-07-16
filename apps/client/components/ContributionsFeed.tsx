@@ -31,6 +31,7 @@ interface ContributionsFeedProps {
 	lastResearchAtByProblemId: Record<string, string>;
 	activeClaims: LiveClaim[];
 	problemsById: Record<string, ContributionProblem>;
+	categoryLabels?: Record<string, string>;
 	search: string;
 	loading: boolean;
 	error: string | null;
@@ -487,9 +488,11 @@ function ProblemStatement({
 
 function ContributionGroupCard({
 	group,
+	categoryLabels,
 	onViewProblem,
 }: {
 	group: ContributionGroup;
+	categoryLabels?: Record<string, string>;
 	onViewProblem: (problem: ContributionProblem) => void;
 }) {
 	const [expanded, setExpanded] = useState(false);
@@ -519,6 +522,9 @@ function ContributionGroupCard({
 	const totalActivity = group.submissions.length + group.researchCount;
 	const visibleEntries = expanded ? entries : entries.slice(0, 2);
 	const title = group.problem?.text ?? `Catalog problem ${group.problemId}`;
+	const categoryLabel = group.problem
+		? (categoryLabels?.[group.problem.category] ?? group.problem.category)
+		: null;
 
 	async function toggleExpanded() {
 		if (expanded) {
@@ -568,7 +574,7 @@ function ContributionGroupCard({
 									letterSpacing="0.08em"
 									textTransform="uppercase"
 								>
-									{group.problem.category} · {group.problem.section}
+									{categoryLabel} · {group.problem.section}
 								</Text>
 							)}
 							{!group.problem && (
@@ -826,6 +832,7 @@ export default function ContributionsFeed({
 	lastResearchAtByProblemId,
 	activeClaims,
 	problemsById,
+	categoryLabels,
 	search,
 	loading,
 	error,
@@ -970,7 +977,7 @@ export default function ContributionsFeed({
 				minW={0}
 				_hover={{ color: "app.textBright" }}
 			>
-				← All disciplines
+				← All categories
 			</Button>
 
 			<Flex
@@ -1175,6 +1182,7 @@ export default function ContributionsFeed({
 								<ContributionGroupCard
 									key={group.problemId}
 									group={group}
+									categoryLabels={categoryLabels}
 									onViewProblem={onViewProblem}
 								/>
 							))}

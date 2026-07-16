@@ -9,7 +9,7 @@ const config: Config = {
 	// https://vike.dev/head-tags
 	title: "Open Questions",
 	description:
-		"A curated index of open questions across scientific disciplines",
+		"A data-driven catalog of open questions, research, and public cases",
 	prerender: true,
 
 	extends: [vikeReact, vikeReactChakra],

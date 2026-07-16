@@ -81,7 +81,11 @@ function pickRandomCategory(categories: string[]): string {
 	if (categories.length === 0) {
 		throw new Error("No available problem categories were returned.");
 	}
-	return categories[Math.floor(Math.random() * categories.length)]!;
+	const category = categories[Math.floor(Math.random() * categories.length)];
+	if (!category) {
+		throw new Error("No available problem categories were returned.");
+	}
+	return category;
 }
 
 async function listAvailableProblemIds(

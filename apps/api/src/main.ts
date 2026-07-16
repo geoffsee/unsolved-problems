@@ -10,6 +10,15 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import {
+	type CategoryManifest,
+	getDataShapeValidationErrors,
+	getDataValidationErrors,
+	type PublishedDataKind,
+	parseManifestJson,
+	validateDataForManifest,
+	validateManifest,
+} from "../../client/lib/manifest";
+import {
 	type AuthBindings,
 	type AuthenticatedPrincipal,
 	AuthStoreDurableObject,
@@ -194,7 +203,7 @@ function getLocalStatePath() {
 }
 
 const ALLOWED_PATTERNS = [
-	/^\/data\/(?:problems|enrichments|news|cases)\.json$/,
+	/^\/data\/(?:manifest|problems|enrichments|news|cases)\.json$/,
 	/^\/data\/news-history\/(?:index|\d{4}-\d{2}-\d{2})\.json$/,
 	/^\/data\/case-history\/(?:index|\d{4}-\d{2}-\d{2})\.json$/,
 ];
@@ -217,6 +226,7 @@ let queueStore: StateStore<QueueState> | undefined;
 let cachedProblems:
 	| {
 			expiresAt: number;
+			manifest: CategoryManifest;
 			problems: ProblemRecord[];
 	  }
 	| undefined;
@@ -251,8 +261,91 @@ function publishedDataPath(pathname: string, env?: Bindings) {
 	return join(root, relative);
 }
 
+function isMissingFileError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		(error as Error & { code?: string }).code === "ENOENT"
+	);
+}
+
 function publishKey(env?: Bindings) {
 	return env?.PUBLISH_KEY || process.env.PUBLISH_KEY;
+}
+
+function publishedDataKind(pathname: string): PublishedDataKind {
+	if (pathname === "/data/manifest.json") return "manifest";
+	if (pathname === "/data/problems.json") return "problems";
+	if (pathname === "/data/news.json") return "news";
+	if (pathname === "/data/cases.json") return "cases";
+	if (pathname === "/data/enrichments.json") return "enrichments";
+	if (pathname === "/data/news-history/index.json") return "news-history-index";
+	if (pathname.startsWith("/data/news-history/")) return "news-history";
+	if (pathname === "/data/case-history/index.json") return "case-history-index";
+	if (pathname.startsWith("/data/case-history/")) return "case-history";
+	throw new Error(`Unsupported published data path: ${pathname}`);
+}
+
+async function readPublishedText(
+	pathname: string,
+	env?: Bindings,
+): Promise<string | null> {
+	let compressed: Uint8Array;
+	try {
+		compressed = await readFile(`${publishedDataPath(pathname, env)}.zst`);
+	} catch (error) {
+		if (isMissingFileError(error)) return null;
+		throw error;
+	}
+	return zstdDecompress(compressed);
+}
+
+async function validateRuntimeData(
+	pathname: string,
+	body: string,
+	env?: Bindings,
+): Promise<void> {
+	let value: unknown;
+	try {
+		value = JSON.parse(body);
+	} catch (error) {
+		throw new Error(
+			`Published ${pathname} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+
+	if (pathname === "/data/manifest.json") {
+		parseManifestJson(body);
+		return;
+	}
+
+	const manifestText = await readPublishedText("/data/manifest.json", env);
+	let manifest: CategoryManifest;
+	if (manifestText !== null) {
+		manifest = parseManifestJson(manifestText);
+	} else {
+		const response = await fetch(buildUpstreamUrl("/data/manifest.json", env), {
+			headers: {
+				accept: "application/json",
+				"user-agent": "open-questions-json-proxy/1.0",
+			},
+		});
+		if (!response.ok) {
+			throw new Error(
+				`Manifest is unavailable while validating ${pathname}; upstream returned ${response.status}.`,
+			);
+		}
+		manifest = parseManifestJson(await response.text());
+	}
+
+	const errors = getDataValidationErrors(
+		manifest,
+		value,
+		publishedDataKind(pathname),
+	);
+	if (errors.length) {
+		throw new Error(`Invalid ${pathname}: ${errors.join("; ")}`);
+	}
 }
 
 async function zstdCompress(value: string): Promise<Uint8Array> {
@@ -531,6 +624,44 @@ async function fetchJson<T>(pathname: string, env?: Bindings): Promise<T> {
 	return (await response.json()) as T;
 }
 
+async function fetchOptionalJson<T>(
+	pathname: string,
+	env: Bindings | undefined,
+	fallback: T,
+): Promise<T> {
+	let response: Response;
+	try {
+		response = await fetch(buildUpstreamUrl(pathname, env), {
+			headers: {
+				accept: "application/json",
+				"user-agent": "open-questions-mcp/1.0",
+			},
+		});
+	} catch {
+		return fallback;
+	}
+	if (!response.ok) return fallback;
+	return (await response.json()) as T;
+}
+
+async function fetchManifest(env?: Bindings): Promise<CategoryManifest> {
+	const url = buildUpstreamUrl("/data/manifest.json", env);
+	const response = await fetch(url, {
+		headers: {
+			accept: "application/json",
+			"user-agent": "open-questions-mcp/1.0",
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(
+			`Unable to load /data/manifest.json: upstream returned ${response.status}.`,
+		);
+	}
+
+	return parseManifestJson(await response.text());
+}
+
 async function searchSearxng(input: {
 	query: string;
 	categories?: string;
@@ -582,16 +713,40 @@ async function loadProblems(env?: Bindings) {
 		return cachedProblems.problems;
 	}
 
+	const manifest = await fetchManifest(env);
+	const hasProblems = Object.values(manifest.categories).some(
+		(category) => category.type === "problems",
+	);
 	const [problemsPayload, enrichmentsPayload] = await Promise.all([
-		fetchJson<ProblemsPayload>("/data/problems.json", env),
-		fetchJson<EnrichmentsPayload>("/data/enrichments.json", env).catch(
-			(): EnrichmentsPayload => ({ problems: {} }),
-		),
+		hasProblems
+			? fetchJson<ProblemsPayload>("/data/problems.json", env)
+			: Promise.resolve<ProblemsPayload>({ categories: {} }),
+		hasProblems
+			? fetchOptionalJson<EnrichmentsPayload>("/data/enrichments.json", env, {
+					problems: {},
+				})
+			: Promise.resolve<EnrichmentsPayload>({ problems: {} }),
 	]);
+	validateDataForManifest(manifest, problemsPayload, "problems");
+	const normalizedEnrichments =
+		typeof enrichmentsPayload === "object" &&
+		enrichmentsPayload !== null &&
+		!Array.isArray(enrichmentsPayload) &&
+		enrichmentsPayload.problems === undefined
+			? { problems: {} }
+			: enrichmentsPayload;
+	const enrichmentErrors = getDataShapeValidationErrors(
+		normalizedEnrichments,
+		"enrichments",
+	);
+	if (enrichmentErrors.length) {
+		throw new Error(`Invalid enrichments data: ${enrichmentErrors.join("; ")}`);
+	}
 
 	const problems: ProblemRecord[] = [];
 	const categories = problemsPayload.categories ?? {};
-	const enrichments = enrichmentsPayload.problems ?? {};
+	const enrichments =
+		(normalizedEnrichments as EnrichmentsPayload).problems ?? {};
 
 	for (const [category, sections] of Object.entries(categories)) {
 		for (const section of sections) {
@@ -619,6 +774,7 @@ async function loadProblems(env?: Bindings) {
 
 	cachedProblems = {
 		expiresAt: now + CACHE_TTL_MS,
+		manifest,
 		problems,
 	};
 
@@ -1131,7 +1287,7 @@ function createMcpServer(
 		{
 			title: "List Problems",
 			description:
-				"List unsolved problems that agents can pick up. Pass category to scope results to one field (recommended for random selection, since unfiltered results are sorted alphabetically and astronomy appears first).",
+				"List unsolved problems that agents can pick up. Pass a category from the catalog resource to scope results to one field (recommended for random selection).",
 			annotations: {
 				readOnlyHint: true,
 				destructiveHint: false,
@@ -1142,7 +1298,7 @@ function createMcpServer(
 					.string()
 					.optional()
 					.describe(
-						"Exact category name filter, such as astronomy, biology, or computer science.",
+						"Exact category name filter from the active catalog manifest.",
 					),
 				query: z.string().optional(),
 				status: z
@@ -1933,6 +2089,7 @@ app.get("/", (c) =>
 			"/auth/logout",
 			"/problems/:problemId",
 			"/problems/:problemId/research",
+			"/data/manifest.json",
 			"/data/problems.json",
 			"/data/enrichments.json",
 			"/data/news.json",
@@ -2249,16 +2406,38 @@ app.get("/data/*", async (c) => {
 	}
 
 	const localPath = `${publishedDataPath(pathname, c.env)}.zst`;
+	let localBody: string | null = null;
 	try {
-		const body = await zstdDecompress(await readFile(localPath));
-		return new Response(body, {
+		localBody = await zstdDecompress(await readFile(localPath));
+	} catch (error) {
+		if (!isMissingFileError(error)) {
+			return jsonError(
+				error instanceof Error
+					? `Published ${pathname} could not be read: ${error.message}`
+					: `Published ${pathname} could not be read.`,
+				500,
+			);
+		}
+	}
+	if (localBody !== null) {
+		try {
+			await validateRuntimeData(pathname, localBody, c.env);
+		} catch (error) {
+			return jsonError(
+				error instanceof Error
+					? error.message
+					: "Published data failed validation.",
+				500,
+			);
+		}
+		return new Response(localBody, {
 			headers: {
 				"content-type": "application/json",
 				"access-control-allow-origin": "*",
 				"x-data-source": "published",
 			},
 		});
-	} catch {}
+	}
 	const upstreamUrl = buildUpstreamUrl(pathname, c.env);
 	const upstream = await fetch(upstreamUrl, {
 		headers: {
@@ -2274,6 +2453,18 @@ app.get("/data/*", async (c) => {
 		);
 	}
 
+	const body = await upstream.text();
+	try {
+		await validateRuntimeData(pathname, body, c.env);
+	} catch (error) {
+		return jsonError(
+			error instanceof Error
+				? error.message
+				: "Upstream data failed validation.",
+			502,
+		);
+	}
+
 	const headers = new Headers({
 		"access-control-allow-origin": "*",
 		"x-proxied-from": upstreamUrl.toString(),
@@ -2284,7 +2475,7 @@ app.get("/data/*", async (c) => {
 		if (value) headers.set(header, value);
 	}
 
-	return new Response(upstream.body, {
+	return new Response(body, {
 		status: upstream.status,
 		headers,
 	});
@@ -2297,12 +2488,47 @@ app.post("/publish", async (c) => {
 	) {
 		return jsonError("A valid publish Bearer token is required.", 401);
 	}
-	const body = await c.req.json<{ path?: string; data?: unknown }>();
+	let body: { path?: string; data?: unknown };
+	try {
+		body = await c.req.json<{ path?: string; data?: unknown }>();
+	} catch {
+		return jsonError("Publish body must be valid JSON.", 400);
+	}
 	if (!body.path || !isAllowedPath(body.path))
 		return jsonError("Invalid data path.", 400);
+
+	const kind = publishedDataKind(body.path);
+	try {
+		if (kind === "manifest") {
+			validateManifest(body.data);
+		} else {
+			const publishedManifest = await readPublishedText(
+				"/data/manifest.json",
+				c.env,
+			);
+			const errors = publishedManifest
+				? getDataValidationErrors(
+						parseManifestJson(publishedManifest),
+						body.data,
+						kind,
+					)
+				: getDataShapeValidationErrors(body.data, kind);
+			if (errors.length) {
+				return jsonError(`Invalid ${kind} data: ${errors.join("; ")}`, 400);
+			}
+		}
+	} catch (error) {
+		return jsonError(
+			error instanceof Error ? error.message : `Invalid ${kind} data.`,
+			400,
+		);
+	}
 	const path = publishedDataPath(body.path, c.env);
 	await mkdir(path.replace(/\/[^/]+$/, ""), { recursive: true });
 	await writeFile(`${path}.zst`, await zstdCompress(JSON.stringify(body.data)));
+	if (kind === "manifest" || kind === "problems" || kind === "enrichments") {
+		cachedProblems = undefined;
+	}
 	return c.json({ ok: true, path: body.path });
 });
 

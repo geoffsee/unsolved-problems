@@ -8,9 +8,11 @@ import {
 	Text,
 } from "@chakra-ui/react";
 import type { CaseCategoryData, CaseItem } from "../lib/cases";
+import { type CategoryManifestEntry, categorySourceUrl } from "../lib/manifest";
 
 interface CaseFeedProps {
 	feed: CaseCategoryData;
+	category: CategoryManifestEntry;
 	search: string;
 	onBack: () => void;
 }
@@ -45,9 +47,15 @@ function matchesSearch(item: CaseItem, query: string) {
 	return haystack.includes(query);
 }
 
-export default function CaseFeed({ feed, search, onBack }: CaseFeedProps) {
+export default function CaseFeed({
+	feed,
+	category,
+	search,
+	onBack,
+}: CaseFeedProps) {
 	const query = search.toLowerCase().trim();
 	const filtered = feed.items.filter((item) => matchesSearch(item, query));
+	const sourceUrl = categorySourceUrl(category) || feed.sourceUrl;
 
 	return (
 		<Box maxW="860px" mx="auto" px={6} pb="80px">
@@ -75,7 +83,7 @@ export default function CaseFeed({ feed, search, onBack }: CaseFeedProps) {
 					color="app.textBright"
 					flex="1"
 				>
-					{feed.label}
+					{category.label}
 				</Heading>
 			</Flex>
 
@@ -93,12 +101,12 @@ export default function CaseFeed({ feed, search, onBack }: CaseFeedProps) {
 				<Text fontSize="0.78rem" color="app.textDim" mt={2}>
 					Source:{" "}
 					<Link
-						href={feed.sourceUrl}
+						href={sourceUrl}
 						target="_blank"
 						rel="noopener noreferrer"
 						color="app.accent"
 					>
-						{feed.sourceSection}
+						{category.presentation?.sourceLabel || feed.sourceSection}
 					</Link>
 					{" • "}
 					{feed.total.toLocaleString()} public listings

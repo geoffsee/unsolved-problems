@@ -1,8 +1,8 @@
 import { Box, Button, Flex, SimpleGrid, Text } from "@chakra-ui/react";
-import type { Category } from "../lib/wiki";
+import type { CategoryManifestEntry } from "../lib/manifest";
 
 interface CategoryGridProps {
-	categories: Record<string, Category>;
+	categories: Record<string, CategoryManifestEntry>;
 	loaded: Record<string, number>;
 	onSelect: (key: string) => void;
 }
@@ -58,20 +58,26 @@ export default function CategoryGrid({
 								fontWeight="400"
 								color="app.textBright"
 								fontSize="1rem"
-								textTransform="capitalize"
+								display="flex"
+								alignItems="center"
+								gap={2}
 							>
-								{key}
+								{categories[key].presentation?.emoji && (
+									<Text as="span" fontSize="0.95rem">
+										{categories[key].presentation?.emoji}
+									</Text>
+								)}
+								{categories[key].label}
 							</Text>
 							<Text fontSize="0.76rem" color="app.textDim" fontWeight="normal">
+								{categories[key].presentation?.description
+									? `${categories[key].presentation.description} · `
+									: ""}
 								{categories[key].type === "news"
-									? "Latest breakthroughs"
+									? `${loaded[key] ?? 0} articles`
 									: categories[key].type === "cases"
-										? loaded[key]
-											? `${loaded[key]} public listings`
-											: "Official public listings"
-										: loaded[key]
-											? `${loaded[key]} open problems`
-											: "Select to browse"}
+										? `${loaded[key] ?? 0} public listings`
+										: `${loaded[key] ?? 0} open problems`}
 							</Text>
 						</Flex>
 					</Button>

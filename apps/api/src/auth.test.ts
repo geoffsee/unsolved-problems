@@ -420,6 +420,21 @@ describe("auth HTTP + MCP enforcement", () => {
 			if (url.includes("/data/enrichments.json")) {
 				return new Response(JSON.stringify({ problems: {} }), { status: 200 });
 			}
+			if (url.includes("/data/manifest.json")) {
+				return new Response(
+					JSON.stringify({
+						version: 1,
+						categories: {
+							biology: {
+								label: "Biology",
+								type: "problems",
+								source: { type: "external" },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		}) as typeof fetch;
 
@@ -523,6 +538,21 @@ describe("auth HTTP + MCP enforcement", () => {
 			}
 			if (url.includes("/data/enrichments.json")) {
 				return new Response(JSON.stringify({ problems: {} }), { status: 200 });
+			}
+			if (url.includes("/data/manifest.json")) {
+				return new Response(
+					JSON.stringify({
+						version: 1,
+						categories: {
+							biology: {
+								label: "Biology",
+								type: "problems",
+								source: { type: "external" },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
 			}
 			throw new Error(`Unexpected fetch: ${url}`);
 		}) as typeof fetch;

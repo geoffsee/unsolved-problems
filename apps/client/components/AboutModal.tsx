@@ -9,12 +9,13 @@ import {
 	Link,
 	Text,
 } from "@chakra-ui/react";
+import { type CategoryManifest, normalizedSourceType } from "../lib/manifest";
 
 interface AboutModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	totalProblems: number;
-	totalCategories: number;
+	manifest: CategoryManifest;
 	enrichedCount: number;
 }
 
@@ -22,9 +23,27 @@ export default function AboutModal({
 	isOpen,
 	onClose,
 	totalProblems,
-	totalCategories,
+	manifest,
 	enrichedCount,
 }: AboutModalProps) {
+	const totalCategories = Object.keys(manifest.categories).length;
+	const sourceLabels = new Set(
+		Object.values(manifest.categories).map((category) => {
+			switch (normalizedSourceType(category.source)) {
+				case "wikipedia":
+					return "Wikipedia";
+				case "perigon":
+					return "Perigon";
+				case "fbi-vicap":
+					return "FBI ViCAP";
+				default:
+					return "configured external sources";
+			}
+		}),
+	);
+	const sourceSummary = [...sourceLabels]
+		.join(", ")
+		.replace(/, ([^,]*)$/, " and $1");
 	return (
 		<DialogRoot
 			open={isOpen}
@@ -59,19 +78,16 @@ export default function AboutModal({
 							<strong style={{ color: "var(--chakra-colors-app-textBright)" }}>
 								{totalProblems.toLocaleString()}
 							</strong>{" "}
-							unsolved problems across{" "}
+							open problems across{" "}
 							<strong style={{ color: "var(--chakra-colors-app-textBright)" }}>
 								{totalCategories}
 							</strong>{" "}
-							scientific disciplines, sourced directly from Wikipedia's
-							peer-reviewed problem lists.
+							manifest categories.
 						</Text>
 
 						<Text fontSize="0.92rem" lineHeight="1.7" color="app.text" mb={4}>
-							It also tracks frontier research headlines and official FBI ViCAP
-							public listings for missing persons and unsolved homicides. These
-							case listings reflect what agencies publish publicly and are not a
-							comprehensive national registry.
+							Data is organized according to the active category manifest and
+							loaded from {sourceSummary || "its configured sources"}.
 						</Text>
 
 						<Text fontSize="0.92rem" lineHeight="1.7" color="app.text" mb={4}>
@@ -90,7 +106,8 @@ export default function AboutModal({
 							color="app.textDim"
 						>
 							<Text mb={1}>
-								Data refreshes nightly from Wikipedia, Perigon, and FBI ViCAP.
+								The catalog and its source data refresh according to the
+								deployment configuration.
 							</Text>
 							<Text>
 								Source on{" "}

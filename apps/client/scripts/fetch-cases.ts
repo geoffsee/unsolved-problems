@@ -9,15 +9,24 @@
 
 import { type BrowserContext, chromium, type LaunchOptions } from "playwright";
 import type { CaseCategoryData, CaseItem } from "../lib/cases";
+import {
+	type CategoryManifest,
+	type CategoryManifestEntry,
+	categoryEntries,
+	normalizedSourceType,
+	parseManifestJson,
+} from "../lib/manifest";
 import { publish } from "./publish";
 
 const OUTPUT_PATH = "public/data/cases.json";
 const HISTORY_DIR = "public/data/case-history";
 const MAX_WAIT_MS = 120000;
 const DETAIL_CONCURRENCY = Number(Bun.env.VICAP_DETAIL_CONCURRENCY || 4);
-const SOURCE_NAME = "FBI ViCAP";
-const DISCLAIMER =
-	"Official public FBI ViCAP listings. Availability depends on what agencies publish publicly and is not a comprehensive national registry.";
+const MANIFEST_PATH =
+	Bun.env.PUBLISH_MANIFEST ||
+	Bun.env.OPEN_QUESTIONS_MANIFEST ||
+	Bun.env.CATALOG_MANIFEST ||
+	"public/data/manifest.json";
 
 interface CaseSource {
 	key: string;
@@ -25,6 +34,8 @@ interface CaseSource {
 	heading: string;
 	sourceSection: string;
 	url: string;
+	sourceName: string;
+	disclaimer: string;
 }
 
 interface CasesFile {
@@ -56,22 +67,43 @@ interface ListingResult {
 	items: CaseItem[];
 }
 
-const SOURCES: CaseSource[] = [
-	{
-		key: "missing persons",
-		label: "Missing Persons",
-		heading: "ViCAP Missing Persons",
-		sourceSection: "ViCAP Missing Persons",
-		url: "https://www.fbi.gov/wanted/vicap/missing-persons",
-	},
-	{
-		key: "unsolved homicides",
-		label: "Unsolved Homicides",
-		heading: "ViCAP Homicides and Sexual Assaults",
-		sourceSection: "ViCAP Homicides and Sexual Assaults",
-		url: "https://www.fbi.gov/wanted/vicap/homicides-and-sexual-assaults",
-	},
-];
+export async function loadManifest(
+	path = MANIFEST_PATH,
+): Promise<CategoryManifest> {
+	const file = Bun.file(path);
+	if (!(await file.exists())) throw new Error(`Manifest not found at ${path}.`);
+	return parseManifestJson(await file.text());
+}
+
+export function caseSourceFromManifest(
+	key: string,
+	category: CategoryManifestEntry,
+): CaseSource {
+	if (normalizedSourceType(category.source) !== "fbi-vicap") {
+		throw new Error(
+			`Case category "${key}" does not use a supported fbi-vicap source; external data must be supplied to the publish CLI.`,
+		);
+	}
+	const source = category.source;
+	const sourceName =
+		typeof source.sourceName === "string" ? source.sourceName : category.label;
+	const url = String(source.url);
+	return {
+		key,
+		label: category.label,
+		heading:
+			typeof source.heading === "string"
+				? source.heading
+				: String(source.sourceSection),
+		sourceSection: String(source.sourceSection),
+		url,
+		sourceName,
+		disclaimer:
+			typeof source.disclaimer === "string" && source.disclaimer.trim()
+				? source.disclaimer
+				: `Public listings supplied by ${category.label}.`,
+	};
+}
 
 const USER_AGENT =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
@@ -112,7 +144,20 @@ async function saveArchive(output: {
 	await Bun.write(snapshotPath, JSON.stringify(output, null, 2));
 
 	const existing = await loadArchiveIndex(indexPath);
-	const snapshots = Array.isArray(existing.snapshots) ? existing.snapshots : [];
+	const categoryKeys = Object.keys(output.categories).sort();
+	const snapshots = (
+		Array.isArray(existing.snapshots) ? existing.snapshots : []
+	).filter(
+		(entry) =>
+			typeof entry?.date === "string" &&
+			/^\d{4}-\d{2}-\d{2}$/.test(entry.date) &&
+			typeof entry?.fetchedAt === "string" &&
+			typeof entry?.path === "string" &&
+			Number.isInteger(entry?.totalCases) &&
+			entry?.categories &&
+			Object.keys(entry.categories).sort().join("\u0000") ===
+				categoryKeys.join("\u0000"),
+	);
 	const categoryCounts = Object.fromEntries(
 		Object.entries(output.categories).map(([key, value]) => [
 			key,
@@ -305,10 +350,10 @@ function buildFallbackCategory(
 		return {
 			...existing,
 			label: source.label,
-			sourceName: SOURCE_NAME,
+			sourceName: source.sourceName,
 			sourceSection: source.sourceSection,
 			sourceUrl: source.url,
-			disclaimer: DISCLAIMER,
+			disclaimer: source.disclaimer,
 			fresh: false,
 			attemptedAt: fetchedAt,
 			lastSuccessfulFetchAt:
@@ -319,10 +364,10 @@ function buildFallbackCategory(
 
 	return {
 		label: source.label,
-		sourceName: SOURCE_NAME,
+		sourceName: source.sourceName,
 		sourceSection: source.sourceSection,
 		sourceUrl: source.url,
-		disclaimer: DISCLAIMER,
+		disclaimer: source.disclaimer,
 		total: 0,
 		fresh: false,
 		attemptedAt: fetchedAt,
@@ -401,40 +446,47 @@ async function scrapeListing(
 		await waitForListings(page, source);
 		await expandListings(page, source);
 
-		const listing = await page.evaluate((section) => {
-			const body = document.body?.innerText || "";
-			const totalMatch = body.match(/Results:\s*([\d,]+)\s*Items/i);
-			const items = [...document.querySelectorAll("li.portal-type-person")]
-				.map((card) => {
-					const nameLink = card.querySelector("p.name a");
-					if (!nameLink || !(nameLink instanceof HTMLAnchorElement))
-						return null;
+		const listing = await page.evaluate(
+			({ section, sourceName, sourceUrl }) => {
+				const body = document.body?.innerText || "";
+				const totalMatch = body.match(/Results:\s*([\d,]+)\s*Items/i);
+				const items = [...document.querySelectorAll("li.portal-type-person")]
+					.map((card) => {
+						const nameLink = card.querySelector("p.name a");
+						if (!nameLink || !(nameLink instanceof HTMLAnchorElement))
+							return null;
 
-					const img = card.querySelector("img");
-					return {
-						id: new URL(nameLink.href).pathname.replace(/^\/+/, ""),
-						title: nameLink.textContent?.trim() || "",
-						url: nameLink.href,
-						imageUrl: img instanceof HTMLImageElement ? img.src : null,
-						sourceName: "FBI ViCAP",
-						sourceSection: section,
-						sourceUrl: location.href,
-						reportedDate: null,
-						location: null,
-						facts: {},
-						details: null,
-						remarks: null,
-					};
-				})
-				.filter((item): item is NonNullable<typeof item> => Boolean(item));
+						const img = card.querySelector("img");
+						return {
+							id: new URL(nameLink.href).pathname.replace(/^\/+/, ""),
+							title: nameLink.textContent?.trim() || "",
+							url: nameLink.href,
+							imageUrl: img instanceof HTMLImageElement ? img.src : null,
+							sourceName,
+							sourceSection: section,
+							sourceUrl,
+							reportedDate: null,
+							location: null,
+							facts: {},
+							details: null,
+							remarks: null,
+						};
+					})
+					.filter((item): item is NonNullable<typeof item> => Boolean(item));
 
-			return {
-				total: totalMatch?.[1]
-					? Number(totalMatch[1].replace(/,/g, ""))
-					: items.length,
-				items,
-			};
-		}, source.sourceSection);
+				return {
+					total: totalMatch?.[1]
+						? Number(totalMatch[1].replace(/,/g, ""))
+						: items.length,
+					items,
+				};
+			},
+			{
+				section: source.sourceSection,
+				sourceName: source.sourceName,
+				sourceUrl: source.url,
+			},
+		);
 
 		const dedupedItems: CaseItem[] = [];
 		const seen = new Set<string>();
@@ -583,10 +635,10 @@ async function scrapeSource(
 
 	return {
 		label: source.label,
-		sourceName: SOURCE_NAME,
+		sourceName: source.sourceName,
 		sourceSection: source.sourceSection,
 		sourceUrl: source.url,
-		disclaimer: DISCLAIMER,
+		disclaimer: source.disclaimer,
 		total: listing.total,
 		fresh: true,
 		attemptedAt: fetchedAt,
@@ -596,10 +648,30 @@ async function scrapeSource(
 	};
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
 	console.log("Fetching FBI ViCAP case listings with Playwright...\n");
 
+	const manifest = await loadManifest();
+	const sources = categoryEntries(manifest)
+		.filter(([, category]) => category.type === "cases")
+		.map(([key, category]) => caseSourceFromManifest(key, category));
 	const fetchedAt = new Date().toISOString();
+	if (sources.length === 0) {
+		const output = {
+			fetchedAt,
+			sourceName: "Configured source",
+			categories: {},
+		};
+		await Bun.write(OUTPUT_PATH, JSON.stringify(output, null, 2));
+		const archive = await saveArchive(output);
+		await publish(
+			OUTPUT_PATH,
+			archive.snapshotPath,
+			`${HISTORY_DIR}/index.json`,
+		);
+		console.log("No case categories declared; wrote an empty cases file.");
+		return;
+	}
 	const existingCategories = await loadExistingCategories();
 	const browser = await chromium.launch(await createLaunchOptions());
 	const context = await browser.newContext({
@@ -612,7 +684,7 @@ async function main(): Promise<void> {
 	const categories: Record<string, CaseCategoryData> = {};
 
 	try {
-		for (const source of SOURCES) {
+		for (const source of sources) {
 			try {
 				categories[source.key] = await scrapeSource(
 					context,
@@ -638,7 +710,7 @@ async function main(): Promise<void> {
 
 	const output = {
 		fetchedAt,
-		sourceName: SOURCE_NAME,
+		sourceName: sources[0]?.sourceName || "Configured source",
 		categories,
 	};
 
@@ -651,7 +723,9 @@ async function main(): Promise<void> {
 	);
 }
 
-main().catch((error) => {
-	console.error(error);
-	process.exit(1);
-});
+if (import.meta.main) {
+	main().catch((error) => {
+		console.error(error);
+		process.exit(1);
+	});
+}

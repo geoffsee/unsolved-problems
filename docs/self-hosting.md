@@ -76,6 +76,7 @@ Omit `--env-file .env.open-questions` when the file is not needed.
 | `API_TOKEN` | unset | Optional bearer token protecting API routes except health |
 | `PUBLISH_KEY` | unset | Bearer secret required by the data publish endpoint |
 | `PUBLISH_API_ORIGIN` | `http://localhost:3040/api` | API origin used by the compiled publish CLI |
+| `PUBLISH_MANIFEST` | `public/data/manifest.json` | Active category/source manifest passed to the compiled publish CLI |
 | `PUBLISH_DATA_DIR` | `data/published` | Directory containing published `.json.zst` files |
 
 The application API is available at `http://localhost:3040`. Its user-facing
@@ -106,6 +107,8 @@ local accounts and issued tokens.
 Data actions publish through the compiled `open-questions-publish` CLI. Set
 `PUBLISH_KEY` in `.env.open-questions`; the API stores published data as zstd
 compressed files under `PUBLISH_DATA_DIR` and serves it at `/data/*.json`.
+The active category/source manifest is served at `/data/manifest.json`; each
+published catalog data file must contain exactly the categories it declares.
 
 ## Local account quick start
 

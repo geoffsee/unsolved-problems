@@ -31066,8 +31066,44 @@ function getIDToken(aud) {
 
 
 
-function hasCachedProblems(path) {
-    return (0,external_node_fs_namespaceObject.existsSync)(path);
+function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function hasMatchingProblemCategories(manifest, data) {
+    if (!isRecord(manifest) || manifest.version !== 1)
+        return false;
+    if (!isRecord(manifest.categories) || !isRecord(data))
+        return false;
+    if (!isRecord(data.categories))
+        return false;
+    const expected = Object.entries(manifest.categories)
+        .filter(([, category]) => isRecord(category) && category.type === "problems")
+        .map(([category]) => category)
+        .sort();
+    const actual = Object.keys(data.categories).sort();
+    if (expected.length !== actual.length ||
+        expected.some((category, index) => category !== actual[index])) {
+        return false;
+    }
+    return Object.values(data.categories).every((sections) => Array.isArray(sections) &&
+        sections.every((section) => isRecord(section) &&
+            typeof section.heading === "string" &&
+            Array.isArray(section.problems) &&
+            section.problems.every((problem) => typeof problem === "string")));
+}
+function hasCachedProblems(path, manifestPath) {
+    if (!(0,external_node_fs_namespaceObject.existsSync)(path))
+        return false;
+    if (!manifestPath)
+        return true;
+    try {
+        const manifest = JSON.parse((0,external_node_fs_namespaceObject.readFileSync)(manifestPath, "utf8"));
+        const data = JSON.parse((0,external_node_fs_namespaceObject.readFileSync)(path, "utf8"));
+        return hasMatchingProblemCategories(manifest, data);
+    }
+    catch {
+        return false;
+    }
 }
 async function command(cwd, args) {
     const exitCode = await exec_exec("bun", args, { cwd });
@@ -31078,9 +31114,17 @@ async function run() {
     try {
         const root = process.env.GITHUB_WORKSPACE ?? process.cwd();
         const client = (0,external_node_path_namespaceObject.resolve)(root, "apps/client");
+        const configuredManifest = process.env.PUBLISH_MANIFEST ||
+            process.env.OPEN_QUESTIONS_MANIFEST ||
+            process.env.CATALOG_MANIFEST;
+        const manifestPath = configuredManifest
+            ? (0,external_node_path_namespaceObject.isAbsolute)(configuredManifest)
+                ? configuredManifest
+                : (0,external_node_path_namespaceObject.resolve)(client, configuredManifest)
+            : (0,external_node_path_namespaceObject.resolve)(client, "public/data/manifest.json");
         await command(client, ["install"]);
         await command(client, ["x", "playwright", "install", "chromium"]);
-        if (hasCachedProblems((0,external_node_path_namespaceObject.resolve)(client, "public/data/problems.json"))) {
+        if (hasCachedProblems((0,external_node_path_namespaceObject.resolve)(client, "public/data/problems.json"), manifestPath)) {
             info("Using cached problems.json");
         }
         else {

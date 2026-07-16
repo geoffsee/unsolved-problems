@@ -8,22 +8,23 @@
  */
 
 import { parseHTML } from "linkedom";
+import {
+	type CategoryManifest,
+	type CategoryManifestEntry,
+	categoryEntries,
+	normalizedSourceType,
+	parseManifestJson,
+} from "../lib/manifest";
 import { publish } from "./publish";
 
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
 const OUTPUT_PATH = "public/data/problems.json";
 
-const CATEGORIES: Record<string, string> = {
-	mathematics: "List_of_unsolved_problems_in_mathematics",
-	physics: "List_of_unsolved_problems_in_physics",
-	"computer science": "List_of_unsolved_problems_in_computer_science",
-	biology: "List_of_unsolved_problems_in_biology",
-	chemistry: "List_of_unsolved_problems_in_chemistry",
-	neuroscience: "List_of_unsolved_problems_in_neuroscience",
-	philosophy: "List_of_philosophical_problems",
-	astronomy: "List_of_unsolved_problems_in_astronomy",
-	economics: "List_of_unsolved_problems_in_economics",
-};
+const MANIFEST_PATH =
+	Bun.env.PUBLISH_MANIFEST ||
+	Bun.env.OPEN_QUESTIONS_MANIFEST ||
+	Bun.env.CATALOG_MANIFEST ||
+	"public/data/manifest.json";
 
 const SKIP_HEADINGS = new Set([
 	"see also",
@@ -52,6 +53,16 @@ interface WikiParseResponse {
 interface ProblemSection {
 	heading: string;
 	problems: string[];
+}
+
+export async function loadManifest(
+	path = MANIFEST_PATH,
+): Promise<CategoryManifest> {
+	const file = Bun.file(path);
+	if (!(await file.exists())) {
+		throw new Error(`Manifest not found at ${path}.`);
+	}
+	return parseManifestJson(await file.text());
 }
 
 async function wikiRequest(
@@ -130,8 +141,19 @@ function stripHtml(str: string): string {
 	return str.replace(/<[^>]+>/g, "").trim();
 }
 
-async function fetchCategory(key: string): Promise<ProblemSection[]> {
-	const page = CATEGORIES[key];
+export async function fetchCategory(
+	key: string,
+	category: CategoryManifestEntry,
+): Promise<ProblemSection[]> {
+	const page = category.source.page;
+	if (
+		normalizedSourceType(category.source) !== "wikipedia" ||
+		typeof page !== "string"
+	) {
+		throw new Error(
+			`Category "${key}" does not have a supported wikipedia source; external data must be supplied to the publish CLI.`,
+		);
+	}
 	console.log(`  [${key}] fetching sections...`);
 
 	const sectionsData = await wikiRequest({
@@ -171,22 +193,41 @@ async function fetchCategory(key: string): Promise<ProblemSection[]> {
 	return result;
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
 	console.log("Fetching unsolved problems from Wikipedia...\n");
+	const manifest = await loadManifest();
 	const data: Record<string, ProblemSection[]> = {};
 
-	const keys = Object.keys(CATEGORIES);
-	for (const [i, key] of keys.entries()) {
+	const categories = categoryEntries(manifest).filter(
+		([, category]) => category.type === "problems",
+	);
+	if (categories.length === 0) {
+		const output = {
+			fetchedAt: new Date().toISOString(),
+			categories: {},
+		};
+		await Bun.write(OUTPUT_PATH, JSON.stringify(output, null, 2));
+		await publish(OUTPUT_PATH);
+		console.log(
+			"No problem categories declared; wrote an empty problems file.",
+		);
+		return;
+	}
+	for (const [i, [key, category]] of categories.entries()) {
+		if (normalizedSourceType(category.source) !== "wikipedia") {
+			throw new Error(
+				`Problem category "${key}" does not use a supported wikipedia source; supply its prebuilt data to open-questions-publish instead.`,
+			);
+		}
 		try {
-			data[key] = await fetchCategory(key);
+			data[key] = await fetchCategory(key, category);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			console.error(`  [${key}] FAILED: ${message}`);
 			data[key] = [];
 		}
-		if (i < keys.length - 1) await Bun.sleep(1000);
+		if (i < categories.length - 1) await Bun.sleep(1000);
 	}
-
 	const output = {
 		fetchedAt: new Date().toISOString(),
 		categories: data,
@@ -202,7 +243,9 @@ async function main(): Promise<void> {
 	console.log(`\nDone. ${totalProblems} problems written to ${OUTPUT_PATH}`);
 }
 
-main().catch((err) => {
-	console.error(err);
-	process.exit(1);
-});
+if (import.meta.main) {
+	main().catch((err) => {
+		console.error(err);
+		process.exit(1);
+	});
+}

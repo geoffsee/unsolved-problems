@@ -129,7 +129,11 @@ export function pickRandomCategory(categories: string[]): string {
 		throw new Error("No available problem categories were returned.");
 	}
 
-	return categories[Math.floor(Math.random() * categories.length)]!;
+	const category = categories[Math.floor(Math.random() * categories.length)];
+	if (!category) {
+		throw new Error("No available problem categories were returned.");
+	}
+	return category;
 }
 
 function bearerHeaders(): Record<string, string> {
@@ -202,7 +206,7 @@ export async function listCatalogCategories(mcpUrl: string): Promise<string[]> {
  * keep claiming the same LLM-favored problem.
  *
  * Random mode first shuffles a category filter, then picks uniformly within
- * that category — avoiding the astronomy-first bias of unfiltered shortlists.
+ * that category — avoiding the first-category bias of unfiltered shortlists.
  */
 export async function resolveRuntimePick(input: {
 	pickMode: string;

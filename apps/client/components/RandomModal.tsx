@@ -28,6 +28,7 @@ interface Problem {
 
 interface RandomModalProps {
 	problem: Problem | null;
+	categoryLabel?: string;
 	isOpen: boolean;
 	onNext: () => void;
 	onClose: () => void;
@@ -54,6 +55,7 @@ const commonButtonStyles: ButtonProps = {
 
 export default function RandomModal({
 	problem,
+	categoryLabel,
 	isOpen,
 	onNext,
 	onClose,
@@ -115,7 +117,7 @@ export default function RandomModal({
 									textTransform="capitalize"
 									mb={0.5}
 								>
-									{problem.category}
+									{categoryLabel || problem.category}
 								</Text>
 								<Text
 									fontSize="0.8rem"

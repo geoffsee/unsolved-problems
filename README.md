@@ -1,6 +1,6 @@
 # open-questions
 
-A curated index of open questions across scientific disciplines, sourced from Wikipedia's peer-reviewed problem lists. Includes AI-generated enrichments for each problem.
+A data-driven catalog of open questions, research, and public cases. Includes AI-generated enrichments for catalog problems.
 
 **Live site:** [geoffsee.github.io/open-questions](https://geoffsee.github.io/open-questions/)
 
@@ -78,13 +78,15 @@ and operations.
 
 Run by CI nightly or on push to `master`:
 
-1. `fetch-data` — scrapes unsolved problem lists from Wikipedia
-2. `fetch-news` — pulls frontier research articles via Perigon
-3. `fetch-cases` — loads official FBI ViCAP missing-person and homicide listings through Playwright
+1. `fetch-data` — scrapes manifest-declared problem sources
+2. `fetch-news` — pulls manifest-declared news feeds via Perigon
+3. `fetch-cases` — loads manifest-declared official case listings through Playwright
 4. `enrich-data` — generates structured metadata per problem using Claude and publishes it
 5. `vike build` — builds the client; the client reads data through the API
 
 Each action writes a local working copy and then invokes the compiled publish CLI. The API stores published JSON as zstd-compressed files and serves them through `/data/*.json`. News and case actions also publish daily snapshots and their `index.json` manifests.
+
+The active catalog is declared in [`apps/client/public/data/manifest.json`](apps/client/public/data/manifest.json) and is published at `/data/manifest.json`. Set `PUBLISH_MANIFEST` or pass `--manifest <path>` to use an alternate catalog; the manifest and supplied data files are validated before publishing.
 
 ## License
 

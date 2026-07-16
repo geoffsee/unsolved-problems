@@ -115,7 +115,7 @@ describe("buildCatalogPrompt", () => {
 		expect(prompt).toContain("structuredContent.categories");
 		expect(prompt).toContain("Choose one category uniformly at random");
 		expect(prompt).toContain(
-			"Do not bias toward the first item or toward astronomy.",
+			"Do not bias toward the first item or toward any particular category.",
 		);
 		expect(prompt).toContain("Call pick_problem with agentId=agent-1");
 		expect(prompt).toContain("save_progress exactly once");

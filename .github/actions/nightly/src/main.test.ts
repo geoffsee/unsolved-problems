@@ -13,4 +13,9 @@ describe("nightly data cache", () => {
 			false,
 		);
 	});
+
+	test("does not reuse a cached file for a malformed or mismatched manifest", () => {
+		const problemsPath = new URL("./main.ts", import.meta.url).pathname;
+		expect(hasCachedProblems(problemsPath, problemsPath)).toBe(false);
+	});
 });

@@ -41,6 +41,27 @@ const SAMPLE_ENRICHMENTS = {
 	},
 };
 
+const SAMPLE_MANIFEST = {
+	version: 1,
+	categories: {
+		astronomy: {
+			label: "Astronomy",
+			type: "problems",
+			source: { type: "external" },
+		},
+		biology: {
+			label: "Biology",
+			type: "problems",
+			source: { type: "external" },
+		},
+		chemistry: {
+			label: "Chemistry",
+			type: "problems",
+			source: { type: "external" },
+		},
+	},
+};
+
 const ASTRONOMY_BLACK_HOLES_ID = makeProblemId(
 	"astronomy",
 	"Black holes",
@@ -85,6 +106,9 @@ function installFetchMock() {
 			return new Response(JSON.stringify(SAMPLE_ENRICHMENTS), {
 				status: 200,
 			});
+		}
+		if (url.includes("/data/manifest.json")) {
+			return new Response(JSON.stringify(SAMPLE_MANIFEST), { status: 200 });
 		}
 		throw new Error(`Unexpected fetch in test: ${url}`);
 	}) as typeof fetch;

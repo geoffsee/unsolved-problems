@@ -66,7 +66,7 @@ describe("cursor example", () => {
 		expect(prompt).toContain("Pick mode: random.");
 		expect(prompt).toContain("structuredContent.categories");
 		expect(prompt).toContain(
-			"Do not bias toward the first item or toward astronomy.",
+			"Do not bias toward the first item or toward any particular category.",
 		);
 		expect(prompt).toContain(
 			"Do not modify repository source files. Do not open a PR.",

@@ -14,13 +14,10 @@ import {
 	type LiveProblemState,
 	type ResearchEntry,
 } from "../lib/agentResearch";
+import { type CategoryManifestEntry, categorySourceUrl } from "../lib/manifest";
 import { makeProblemId } from "../lib/problemIds";
 import { getProblemRisk } from "../lib/risk";
-import {
-	type Category,
-	getEnrichment,
-	type Section as ProblemSection,
-} from "../lib/wiki";
+import { getEnrichment, type Section as ProblemSection } from "../lib/wiki";
 import { MarkdownContent } from "./MarkdownContent";
 import RiskBadge from "./RiskBadge";
 
@@ -468,7 +465,7 @@ function Section({
 
 interface ProblemsViewProps {
 	categoryKey: string;
-	category: Category;
+	category: CategoryManifestEntry;
 	sections: ProblemSection[];
 	totalProblems: number;
 	loading: boolean;
@@ -491,7 +488,7 @@ export default function ProblemsView({
 	liveProblemStateById,
 	focusedProblemId,
 }: ProblemsViewProps) {
-	const wikiUrl = `https://en.wikipedia.org/wiki/${category.page}`;
+	const sourceUrl = categorySourceUrl(category);
 
 	return (
 		<Box maxW="860px" mx="auto" px={6} pb="80px">
@@ -510,7 +507,7 @@ export default function ProblemsView({
 					textDecoration="underline"
 					_hover={{ color: "app.textBright" }}
 				>
-					&larr; All disciplines
+					&larr; All categories
 				</Button>
 				<Heading
 					as="h2"
@@ -518,29 +515,30 @@ export default function ProblemsView({
 					fontSize="1.35rem"
 					fontWeight="400"
 					color="app.textBright"
-					textTransform="capitalize"
 					flex={1}
 				>
-					{categoryKey}
+					{category.label}
 				</Heading>
-				<Link
-					href={wikiUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					fontSize="0.78rem"
-					color="app.textDim"
-					textDecoration="underline"
-					_hover={{ color: "app.accent" }}
-				>
-					Source
-				</Link>
+				{sourceUrl && (
+					<Link
+						href={sourceUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						fontSize="0.78rem"
+						color="app.textDim"
+						textDecoration="underline"
+						_hover={{ color: "app.accent" }}
+					>
+						{category.presentation?.sourceLabel || "Source"}
+					</Link>
+				)}
 			</Flex>
 
 			{loading && (
 				<Flex direction="column" align="center" py="60px">
 					<Spinner color="app.accent" size="md" mb={3.5} />
 					<Text color="app.textDim" fontSize="0.9rem">
-						Loading from Wikipedia&hellip;
+						Loading {category.label}&hellip;
 					</Text>
 				</Flex>
 			)}

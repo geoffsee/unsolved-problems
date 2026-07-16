@@ -32,6 +32,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
+            apps/client/public/data/manifest.json
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
             apps/client/public/data/news-history
@@ -50,6 +51,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
+            apps/client/public/data/manifest.json
             apps/client/public/data/problems.json
             apps/client/public/data/news.json
             apps/client/public/data/news-history

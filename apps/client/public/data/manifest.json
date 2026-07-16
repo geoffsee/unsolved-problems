@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "categories": {
+    "mathematics": {
+      "label": "Mathematics",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_mathematics",
+        "emoji": "🧮",
+        "color": "#6C5CE7"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_mathematics"
+      }
+    },
+    "physics": {
+      "label": "Physics",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_physics",
+        "emoji": "⚛️",
+        "color": "#0984E3"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_physics"
+      }
+    },
+    "computer science": {
+      "label": "Computer Science",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_computer_science",
+        "emoji": "💻",
+        "color": "#00B894"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_computer_science"
+      }
+    },
+    "biology": {
+      "label": "Biology",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_biology",
+        "emoji": "🧬",
+        "color": "#00CEC9"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_biology"
+      }
+    },
+    "chemistry": {
+      "label": "Chemistry",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_chemistry",
+        "emoji": "⚗️",
+        "color": "#E17055"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_chemistry"
+      }
+    },
+    "neuroscience": {
+      "label": "Neuroscience",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_neuroscience",
+        "emoji": "🧠",
+        "color": "#E84393"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_neuroscience"
+      }
+    },
+    "philosophy": {
+      "label": "Philosophy",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_philosophical_problems",
+        "emoji": "💭",
+        "color": "#A29BFE"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_philosophical_problems"
+      }
+    },
+    "astronomy": {
+      "label": "Astronomy",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_astronomy",
+        "emoji": "🔭",
+        "color": "#2D3436"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_astronomy"
+      }
+    },
+    "economics": {
+      "label": "Economics",
+      "type": "problems",
+      "presentation": {
+        "page": "List_of_unsolved_problems_in_economics",
+        "emoji": "📈",
+        "color": "#636E72"
+      },
+      "source": {
+        "type": "wikipedia",
+        "page": "List_of_unsolved_problems_in_economics"
+      }
+    },
+    "frontier research": {
+      "label": "Frontier Research",
+      "type": "news",
+      "presentation": {
+        "emoji": "🔬",
+        "color": "#8a9bb5",
+        "description": "Latest breakthroughs"
+      },
+      "source": {
+        "type": "perigon",
+        "query": "frontier research OR scientific breakthrough OR scientific discovery",
+        "category": "Science",
+        "sourceGroup": "top100",
+        "size": 50,
+        "sortBy": "date"
+      }
+    },
+    "missing persons": {
+      "label": "Missing Persons",
+      "type": "cases",
+      "presentation": {
+        "emoji": "🧭",
+        "color": "#6f8f72",
+        "description": "Official public listings"
+      },
+      "source": {
+        "type": "fbi-vicap",
+        "sourceName": "FBI ViCAP",
+        "sourceSection": "ViCAP Missing Persons",
+        "heading": "ViCAP Missing Persons",
+        "url": "https://www.fbi.gov/wanted/vicap/missing-persons",
+        "disclaimer": "Official public FBI ViCAP listings. Availability depends on what agencies publish publicly and is not a comprehensive national registry."
+      }
+    },
+    "unsolved homicides": {
+      "label": "Unsolved Homicides",
+      "type": "cases",
+      "presentation": {
+        "emoji": "🕯️",
+        "color": "#8c6d66",
+        "description": "Official public listings"
+      },
+      "source": {
+        "type": "fbi-vicap",
+        "sourceName": "FBI ViCAP",
+        "sourceSection": "ViCAP Homicides and Sexual Assaults",
+        "heading": "ViCAP Homicides and Sexual Assaults",
+        "url": "https://www.fbi.gov/wanted/vicap/homicides-and-sexual-assaults",
+        "disclaimer": "Official public FBI ViCAP listings. Availability depends on what agencies publish publicly and is not a comprehensive national registry."
+      }
+    }
+  }
+}

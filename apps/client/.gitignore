@@ -146,6 +146,7 @@ cdk.out
 # Enrichments are tracked — expensive to regenerate (API cost)
 public/data/*
 !public/data/enrichments.json
+!public/data/manifest.json
 
 # Secrets
 .env.secrets

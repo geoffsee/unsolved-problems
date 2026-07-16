@@ -20,19 +20,17 @@ import {
 	type QueueSnapshot,
 } from "../../lib/agentResearch";
 import type { CaseCategoryData } from "../../lib/cases";
+import type {
+	CategoryManifest,
+	CategoryManifestEntry,
+	NewsCategoryData,
+} from "../../lib/manifest";
 import { makeProblemId } from "../../lib/problemIds";
 import {
-	CATEGORIES,
 	type EnrichmentProblem,
 	type Section,
 	setEnrichments,
 } from "../../lib/wiki";
-
-interface NewsItem {
-	title: string;
-	sources: { domain: string; url: string }[];
-	seendate: string;
-}
 
 interface RandomProblem {
 	id: string;
@@ -43,14 +41,16 @@ interface RandomProblem {
 
 export default function Page() {
 	const {
+		manifest,
 		categories,
 		enrichments,
 		news: preloadedNews,
 		cases: preloadedCases,
 	} = useData<{
+		manifest: CategoryManifest;
 		categories: Record<string, Section[]>;
 		enrichments: Record<string, EnrichmentProblem>;
-		news: NewsItem[];
+		news: Record<string, NewsCategoryData>;
 		cases: Record<string, CaseCategoryData>;
 	}>();
 
@@ -61,11 +61,20 @@ export default function Page() {
 
 	// Compute problem counts from prerendered data
 	const loadedCategories: Record<string, number> = {};
-	for (const [key, sections] of Object.entries(categories)) {
-		loadedCategories[key] = sections.reduce((n, s) => n + s.problems.length, 0);
-	}
-	for (const [key, feed] of Object.entries(preloadedCases)) {
-		loadedCategories[key] = feed.items.length;
+	for (const [key, entry] of Object.entries(manifest.categories)) {
+		if (entry.type === "problems") {
+			loadedCategories[key] = (categories[key] || []).reduce(
+				(n, s) => n + s.problems.length,
+				0,
+			);
+		} else if (entry.type === "news") {
+			loadedCategories[key] =
+				preloadedNews[key]?.totalArticles ??
+				preloadedNews[key]?.articles.length ??
+				0;
+		} else {
+			loadedCategories[key] = preloadedCases[key]?.total ?? 0;
+		}
 	}
 
 	const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -98,6 +107,16 @@ export default function Page() {
 
 		return lookup;
 	}, [categories]);
+	const categoryLabels = useMemo(
+		() =>
+			Object.fromEntries(
+				Object.entries(manifest.categories).map(([key, category]) => [
+					key,
+					category.label,
+				]),
+			),
+		[manifest],
+	);
 
 	const sections =
 		activeCategory && categories[activeCategory]
@@ -141,11 +160,9 @@ export default function Page() {
 	}, []);
 
 	const pickRandom = useCallback(() => {
-		setShowRandom(true);
-
 		const pool: RandomProblem[] = [];
 		for (const [k, secs] of Object.entries(categories)) {
-			if (CATEGORIES[k]?.type) continue;
+			if (manifest.categories[k]?.type !== "problems") continue;
 			for (const sec of secs) {
 				for (const p of sec.problems) {
 					pool.push({
@@ -158,10 +175,15 @@ export default function Page() {
 			}
 		}
 
-		if (pool.length > 0) {
-			setRandomProblem(pool[Math.floor(Math.random() * pool.length)]);
+		if (pool.length === 0) {
+			setRandomProblem(null);
+			setShowRandom(false);
+			return;
 		}
-	}, [categories]);
+
+		setRandomProblem(pool[Math.floor(Math.random() * pool.length)] ?? null);
+		setShowRandom(true);
+	}, [categories, manifest]);
 
 	useEffect(() => {
 		void queueRefreshKey;
@@ -196,7 +218,10 @@ export default function Page() {
 
 	const totalProblems = sections.reduce((n, s) => n + s.problems.length, 0);
 
-	const activeType = activeCategory ? CATEGORIES[activeCategory]?.type : null;
+	const activeEntry: CategoryManifestEntry | null = activeCategory
+		? (manifest.categories[activeCategory] ?? null)
+		: null;
+	const activeType = activeEntry?.type ?? null;
 	const activeCases =
 		activeCategory && activeType === "cases"
 			? preloadedCases[activeCategory]
@@ -250,7 +275,7 @@ export default function Page() {
 				showSearch={!!activeCategory || showContributions}
 				placeholder={
 					activeCategory
-						? `Search in ${activeCategory}...`
+						? `Search in ${activeEntry?.label ?? activeCategory}...`
 						: showContributions
 							? "Search questions, findings, agents, or sources..."
 							: "Filter..."
@@ -270,6 +295,7 @@ export default function Page() {
 						}
 						activeClaims={queueSnapshot?.activeClaims || []}
 						problemsById={contributionProblemsById}
+						categoryLabels={categoryLabels}
 						search={search}
 						loading={queueLoading}
 						error={queueError}
@@ -280,27 +306,33 @@ export default function Page() {
 				) : !activeCategory ? (
 					<>
 						<CategoryGrid
-							categories={CATEGORIES}
+							categories={manifest.categories}
 							loaded={loadedCategories}
 							onSelect={selectCategory}
 						/>
 						<AuthPanel />
 						<AgentLaunchCard />
 					</>
-				) : activeType === "news" ? (
+				) : activeType === "news" && activeEntry ? (
 					<NewsFeed
-						news={preloadedNews}
+						feed={preloadedNews[activeCategory]}
+						category={activeEntry}
 						loading={false}
 						error={null}
 						search={search}
 						onBack={goBack}
 					/>
-				) : activeType === "cases" && activeCases ? (
-					<CaseFeed feed={activeCases} search={search} onBack={goBack} />
-				) : (
+				) : activeType === "cases" && activeCases && activeEntry ? (
+					<CaseFeed
+						feed={activeCases}
+						category={activeEntry}
+						search={search}
+						onBack={goBack}
+					/>
+				) : activeType === "problems" && activeEntry ? (
 					<ProblemsView
 						categoryKey={activeCategory}
-						category={CATEGORIES[activeCategory]}
+						category={activeEntry}
 						sections={filteredSections}
 						totalProblems={totalProblems}
 						loading={false}
@@ -310,11 +342,20 @@ export default function Page() {
 						liveProblemStateById={liveProblemStateById}
 						focusedProblemId={focusedProblemId}
 					/>
+				) : (
+					<Box maxW="860px" mx="auto" px={6} pb="80px" color="app.error">
+						This category is not present in the active catalog manifest.
+					</Box>
 				)}
 			</Box>
 
 			<RandomModal
 				problem={randomProblem}
+				categoryLabel={
+					randomProblem
+						? manifest.categories[randomProblem.category]?.label
+						: undefined
+				}
 				isOpen={showRandom}
 				onNext={pickRandom}
 				onClose={() => setShowRandom(false)}
@@ -331,7 +372,7 @@ export default function Page() {
 				totalProblems={Object.values(categories)
 					.flat()
 					.reduce((n, s) => n + s.problems.length, 0)}
-				totalCategories={Object.keys(categories).length}
+				manifest={manifest}
 				enrichedCount={Object.keys(enrichments).length}
 			/>
 		</Box>

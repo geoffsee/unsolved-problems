@@ -112,6 +112,7 @@ describe("slugify / stableHash / makeProblemId", () => {
 
 describe("isAllowedPath", () => {
 	test("allows approved data paths", () => {
+		expect(isAllowedPath("/data/manifest.json")).toBe(true);
 		expect(isAllowedPath("/data/problems.json")).toBe(true);
 		expect(isAllowedPath("/data/enrichments.json")).toBe(true);
 		expect(isAllowedPath("/data/news.json")).toBe(true);

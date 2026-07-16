@@ -1,18 +1,13 @@
 import { Box, Button, Flex, Heading, Link, Text } from "@chakra-ui/react";
-
-interface NewsSource {
-	domain: string;
-	url: string;
-}
-
-interface NewsItem {
-	title: string;
-	sources: NewsSource[];
-	seendate: string;
-}
+import {
+	type CategoryManifestEntry,
+	categorySourceUrl,
+	type NewsCategoryData,
+} from "../lib/manifest";
 
 interface NewsFeedProps {
-	news: NewsItem[];
+	feed?: NewsCategoryData;
+	category: CategoryManifestEntry | null;
 	loading: boolean;
 	error: string | null;
 	search: string;
@@ -20,12 +15,17 @@ interface NewsFeedProps {
 }
 
 export default function NewsFeed({
-	news,
+	feed,
+	category,
 	loading,
 	error,
 	search,
 	onBack,
 }: NewsFeedProps) {
+	const news = feed?.articles ?? [];
+	const label = category?.label || feed?.label || "News";
+	const sourceUrl =
+		(category ? categorySourceUrl(category) : null) || feed?.sourceUrl;
 	const formatDate = (dateStr: string) => {
 		try {
 			return new Date(dateStr).toLocaleDateString("en-US", {
@@ -72,13 +72,24 @@ export default function NewsFeed({
 					color="app.textBright"
 					flex="1"
 				>
-					Frontier Research News
+					{label}
 				</Heading>
+				{sourceUrl && (
+					<Link
+						href={sourceUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						fontSize="0.78rem"
+						color="app.textDim"
+						textDecoration="underline"
+						_hover={{ color: "app.accent" }}
+					>
+						{category?.presentation?.sourceLabel || "Source"}
+					</Link>
+				)}
 			</Flex>
 
-			{loading && (
-				<Text color="app.textDim">Fetching latest breakthroughs...</Text>
-			)}
+			{loading && <Text color="app.textDim">Loading {label}...</Text>}
 			{error && <Text color="app.error">{error}</Text>}
 
 			{!loading && !error && (

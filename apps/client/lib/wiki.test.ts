@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { CATEGORIES, getEnrichment, setEnrichments } from "./wiki";
+import { parseManifestJson } from "./manifest";
+import { getEnrichment, setEnrichments } from "./wiki";
 
 afterEach(() => {
 	setEnrichments({});
@@ -29,16 +30,16 @@ describe("enrichment store", () => {
 	});
 });
 
-describe("CATEGORIES", () => {
-	test("includes core scientific categories with wiki pages", () => {
-		expect(CATEGORIES.mathematics?.page).toContain("mathematics");
-		expect(CATEGORIES.physics?.emoji).toBeTruthy();
-		expect(CATEGORIES.astronomy?.color).toMatch(/^#/);
-	});
-
-	test("marks special non-wiki categories by type", () => {
-		expect(CATEGORIES["frontier research"]?.type).toBe("news");
-		expect(CATEGORIES["missing persons"]?.type).toBe("cases");
-		expect(CATEGORIES["unsolved homicides"]?.type).toBe("cases");
+describe("published manifest", () => {
+	test("contains the current problem, news, and case catalog", async () => {
+		const manifest = parseManifestJson(
+			await Bun.file(
+				new URL("../public/data/manifest.json", import.meta.url),
+			).text(),
+		);
+		expect(manifest.categories.mathematics?.type).toBe("problems");
+		expect(manifest.categories["frontier research"]?.type).toBe("news");
+		expect(manifest.categories["missing persons"]?.type).toBe("cases");
+		expect(manifest.categories.physics?.presentation?.emoji).toBeTruthy();
 	});
 });
