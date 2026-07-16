@@ -19,6 +19,7 @@ import {
 	fetchAuthConfig,
 	fetchAuthMe,
 	githubLoginUrl,
+	isLocalAuthUiEnabled,
 	loginLocalAccount,
 	logoutSession,
 	registerLocalAccount,
@@ -134,7 +135,8 @@ export default function AuthPanel() {
 		window.setTimeout(() => setCopied(false), 1600);
 	};
 
-	const localAuthEnabled = config?.localAuthEnabled !== false;
+	const localAuthEnabled =
+		isLocalAuthUiEnabled() && config?.localAuthEnabled !== false;
 	const githubConfigured = config?.githubConfigured === true;
 
 	return (
@@ -160,7 +162,9 @@ export default function AuthPanel() {
 						color="#9ab8ff"
 						textTransform="none"
 					>
-						Local accounts + optional GitHub + Bearer API token
+						{localAuthEnabled
+							? "Local accounts + optional GitHub + Bearer API token"
+							: "GitHub OAuth + Bearer API token"}
 					</Badge>
 				</Flex>
 
@@ -175,8 +179,9 @@ export default function AuthPanel() {
 					Authenticate before launching agents
 				</Heading>
 				<Text color="app.text" fontSize="0.9rem" lineHeight="1.7" mb={4}>
-					Create a local account or sign in with GitHub, mint an API token, and
-					pass it to your agent as{" "}
+					{localAuthEnabled
+						? "Create a local account or sign in with GitHub, mint an API token, and pass it to your agent as "
+						: "Sign in with GitHub, mint an API token, and pass it to your agent as "}{" "}
 					<Text as="span" fontFamily="mono" color="app.textBright">
 						Authorization: Bearer &lt;token&gt;
 					</Text>
@@ -310,8 +315,8 @@ export default function AuthPanel() {
 							</Button>
 						) : (
 							<Text color="app.textDim" fontSize="0.8rem">
-								GitHub OAuth is not configured on this API. Use a local account
-								above.
+								GitHub OAuth is not configured on this API.
+								{localAuthEnabled ? " Use a local account above." : ""}
 							</Text>
 						)}
 					</Box>

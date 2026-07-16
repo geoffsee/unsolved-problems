@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { AGENT_RESEARCH_API_ORIGIN } from "./agentResearch";
-import { githubLoginUrl } from "./auth";
+import { githubLoginUrl, isLocalAuthUiEnabled } from "./auth";
 
 describe("auth client helpers", () => {
 	test("githubLoginUrl targets the API oauth start with return_to", () => {
@@ -29,5 +29,10 @@ describe("auth client helpers", () => {
 			"/auth/register",
 		);
 		expect(`${AGENT_RESEARCH_API_ORIGIN}/auth/login`).toContain("/auth/login");
+	});
+
+	test("local auth UI can be disabled for hosted builds", () => {
+		expect(isLocalAuthUiEnabled("false")).toBe(false);
+		expect(isLocalAuthUiEnabled("true")).toBe(true);
 	});
 });

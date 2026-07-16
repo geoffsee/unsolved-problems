@@ -49,6 +49,7 @@ jobs:
           PUBLISH_API_ORIGIN: ${{ secrets.PUBLISH_API_ORIGIN }}
           PUBLISH_KEY: ${{ secrets.PUBLISH_KEY }}
           VITE_API_ORIGIN: ${{ secrets.PUBLISH_API_ORIGIN }}
+          VITE_LOCAL_AUTH_ENABLED: "false"
 
       - name: Save data cache
         uses: actions/cache/save@v4

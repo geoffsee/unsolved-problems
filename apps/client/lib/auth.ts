@@ -2,6 +2,12 @@ import { AGENT_RESEARCH_API_ORIGIN } from "./agentResearch";
 
 const SESSION_STORAGE_KEY = "unsolved.auth.session";
 
+export function isLocalAuthUiEnabled(
+	value = import.meta.env.VITE_LOCAL_AUTH_ENABLED,
+): boolean {
+	return value !== "false";
+}
+
 export type AuthUser = {
 	id: number;
 	login: string;
