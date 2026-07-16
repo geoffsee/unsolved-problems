@@ -79,6 +79,21 @@ async function command(cwd: string, args: string[]) {
 		throw new Error(`bun ${args.join(" ")} exited ${exitCode}`);
 }
 
+export async function publishCachedProblems(
+	client: string,
+	manifestPath: string,
+	problemsPath: string,
+	execute: typeof exec.exec = exec.exec,
+) {
+	const exitCode = await execute(
+		resolve(client, "dist/publish-cli"),
+		["--manifest", manifestPath, problemsPath],
+		{ cwd: client },
+	);
+	if (exitCode !== 0)
+		throw new Error("Publishing cached problems.json failed.");
+}
+
 export async function run(): Promise<void> {
 	try {
 		const root = process.env.GITHUB_WORKSPACE ?? process.cwd();
@@ -103,6 +118,11 @@ export async function run(): Promise<void> {
 			)
 		) {
 			core.info("Using cached problems.json");
+			await publishCachedProblems(
+				client,
+				manifestPath,
+				resolve(client, "public/data/problems.json"),
+			);
 		} else {
 			await command(client, ["run", "fetch-data"]);
 		}

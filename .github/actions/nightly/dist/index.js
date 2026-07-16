@@ -31122,6 +31122,11 @@ async function command(cwd, args) {
     if (exitCode !== 0)
         throw new Error(`bun ${args.join(" ")} exited ${exitCode}`);
 }
+async function publishCachedProblems(client, manifestPath, problemsPath, execute = exec_exec) {
+    const exitCode = await execute((0,external_node_path_namespaceObject.resolve)(client, "dist/publish-cli"), ["--manifest", manifestPath, problemsPath], { cwd: client });
+    if (exitCode !== 0)
+        throw new Error("Publishing cached problems.json failed.");
+}
 async function run() {
     try {
         const root = process.env.GITHUB_WORKSPACE ?? process.cwd();
@@ -31139,6 +31144,7 @@ async function run() {
         await command(client, ["x", "playwright", "install", "chromium"]);
         if (hasCachedProblems((0,external_node_path_namespaceObject.resolve)(client, "public/data/problems.json"), manifestPath)) {
             info("Using cached problems.json");
+            await publishCachedProblems(client, manifestPath, (0,external_node_path_namespaceObject.resolve)(client, "public/data/problems.json"));
         }
         else {
             await command(client, ["run", "fetch-data"]);
