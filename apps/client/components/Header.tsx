@@ -36,15 +36,26 @@ export default function Header() {
 				</Text>
 				<br />
 
-				<Text
-					fontSize={"2xs"}
+				<Box
 					as="span"
-					mt={"1rem"}
+					display="inline-flex"
+					alignItems="center"
+					justifyContent="center"
+					gap={3}
+					fontSize="2xs"
 					color="app.textBright"
 					fontWeight="100"
 				>
-					Open source | Updates daily at midnight
-				</Text>
+					<Text as="span">Open source</Text>
+					<Box
+						as="span"
+						aria-hidden="true"
+						w="1px"
+						h="0.85em"
+						bg="app.textDim"
+					/>
+					<Text as="span">Updates daily at midnight</Text>
+				</Box>
 			</Text>
 		</Box>
 	);
