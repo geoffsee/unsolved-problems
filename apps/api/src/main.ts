@@ -90,6 +90,14 @@ type ResearchEntry = {
 	artifactUrl: string | null;
 };
 
+function isUsageResearchEntry(entry: ResearchEntry) {
+	return entry.title?.toLowerCase().includes("token usage") ?? false;
+}
+
+function substantiveResearchEntries(entries: ResearchEntry[] | undefined) {
+	return (entries ?? []).filter((entry) => !isUsageResearchEntry(entry));
+}
+
 type QueueState = {
 	claimsByProblemId: Record<string, ProblemClaim>;
 	solutionsByProblemId: Record<string, SubmittedSolution[]>;
@@ -341,16 +349,19 @@ function pruneExpiredClaims(state: QueueState) {
 function createQueueSnapshot(state: QueueState): QueueSnapshot {
 	const researchCountsByProblemId = Object.fromEntries(
 		Object.entries(state.researchEntriesByProblemId).map(
-			([problemId, entries]) => [problemId, entries.length],
+			([problemId, entries]) => [
+				problemId,
+				substantiveResearchEntries(entries).length,
+			],
 		),
 	);
 	const lastResearchAtByProblemId = Object.fromEntries(
 		Object.entries(state.researchEntriesByProblemId)
-			.filter(([, entries]) => entries.length > 0)
-			.map(([problemId, entries]) => [
-				problemId,
-				entries[entries.length - 1].createdAt,
-			]),
+			.map(([problemId, entries]) => {
+				const substantive = substantiveResearchEntries(entries);
+				return [problemId, substantive.at(-1)?.createdAt ?? null] as const;
+			})
+			.filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
 	);
 
 	return {
@@ -360,6 +371,7 @@ function createQueueSnapshot(state: QueueState): QueueSnapshot {
 		submissions: Object.values(state.solutionsByProblemId).flat(),
 		recentResearchEntries: Object.values(state.researchEntriesByProblemId)
 			.flat()
+			.filter((entry) => !isUsageResearchEntry(entry))
 			.sort(
 				(a, b) =>
 					new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -785,10 +797,13 @@ async function summarizeProblem(problem: ProblemRecord, state: QueueState) {
 		text: problem.text,
 		status,
 		enrichment: problem.enrichment,
-		researchEntryCount:
-			state.researchEntriesByProblemId[problem.id]?.length ?? 0,
+		researchEntryCount: substantiveResearchEntries(
+			state.researchEntriesByProblemId[problem.id],
+		).length,
 		lastResearchAt:
-			state.researchEntriesByProblemId[problem.id]?.at(-1)?.createdAt ?? null,
+			substantiveResearchEntries(
+				state.researchEntriesByProblemId[problem.id],
+			).at(-1)?.createdAt ?? null,
 	};
 }
 
@@ -1803,7 +1818,9 @@ app.get("/problems/:problemId", async (c) => {
 				? state.claimsByProblemId[problemId]
 				: null,
 		submissions: state.solutionsByProblemId[problemId] ?? [],
-		researchEntries: state.researchEntriesByProblemId[problemId] ?? [],
+		researchEntries: substantiveResearchEntries(
+			state.researchEntriesByProblemId[problemId],
+		),
 	});
 });
 
@@ -1820,7 +1837,9 @@ app.get("/problems/:problemId/research", async (c) => {
 
 	return c.json({
 		problemId,
-		entries: state.researchEntriesByProblemId[problemId] ?? [],
+		entries: substantiveResearchEntries(
+			state.researchEntriesByProblemId[problemId],
+		),
 	});
 });
 

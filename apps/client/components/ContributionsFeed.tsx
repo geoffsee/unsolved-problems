@@ -117,6 +117,10 @@ function isUsageEntry(entry: ContributionItem) {
 	);
 }
 
+function isUsageResearchEntry(entry: { title?: string | null }) {
+	return entry.title?.toLowerCase().includes("token usage") ?? false;
+}
+
 function buildGroups(
 	submissions: SubmittedSolution[],
 	researchEntries: ResearchEntry[],
@@ -154,6 +158,7 @@ function buildGroups(
 	}
 
 	for (const entry of researchEntries) {
+		if (isUsageResearchEntry(entry)) continue;
 		getGroup(entry.problemId).researchEntries.push(entry);
 	}
 
@@ -494,7 +499,9 @@ function ContributionGroupCard({
 	const [loadingHistory, setLoadingHistory] = useState(false);
 	const [historyError, setHistoryError] = useState<string | null>(null);
 
-	const researchEntries = fullResearch ?? group.researchEntries;
+	const researchEntries = (fullResearch ?? group.researchEntries).filter(
+		(entry) => !isUsageResearchEntry(entry),
+	);
 	const entries: ContributionItem[] = [
 		...group.submissions.map((item) => ({
 			type: "submission" as const,
@@ -506,12 +513,9 @@ function ContributionGroupCard({
 			item,
 			sortDate: item.createdAt,
 		})),
-	].sort((a, b) => {
-		const aIsUsage = isUsageEntry(a);
-		const bIsUsage = isUsageEntry(b);
-		if (aIsUsage !== bIsUsage) return aIsUsage ? 1 : -1;
-		return new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime();
-	});
+	].sort(
+		(a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime(),
+	);
 	const totalActivity = group.submissions.length + group.researchCount;
 	const visibleEntries = expanded ? entries : entries.slice(0, 2);
 	const title = group.problem?.text ?? `Catalog problem ${group.problemId}`;

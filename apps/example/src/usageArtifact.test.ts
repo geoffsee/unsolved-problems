@@ -70,41 +70,30 @@ describe("extractProblemIdFromUnknown", () => {
 });
 
 describe("saveUsageArtifact", () => {
-	test("saves through an injected callTool helper", async () => {
-		const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
-		const logger = silentLogger();
+	test("logs usage without calling save_progress", async () => {
+		const infoCalls: Array<[string, Record<string, unknown>?]> = [];
+		const callTool = mock(async () => ({ ok: true }));
+		const logger = {
+			...silentLogger(),
+			info: (message: string, attributes?: Record<string, unknown>) => {
+				infoCalls.push([message, attributes]);
+			},
+		};
 
 		const payload = await saveUsageArtifact(logger, {
 			...sampleInput,
 			provider: "anthropic",
-			callTool: async (name, args) => {
-				calls.push({ name, args });
-				return { ok: true };
-			},
+			callTool,
 		});
 
 		expect(payload.provider).toBe("anthropic");
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.name).toBe("save_progress");
-		expect(calls[0]?.args.problemId).toBe("math-001");
-		expect(calls[0]?.args.kind).toBe("note");
-		expect(String(calls[0]?.args.artifactUrl)).toStartWith(
-			"data:application/json;charset=utf-8,",
-		);
-		expect(logger.info).toHaveBeenCalled();
-	});
-
-	test("propagates callTool failures", async () => {
-		const logger = silentLogger();
-		await expect(
-			saveUsageArtifact(logger, {
-				...sampleInput,
-				provider: "cursor",
-				callTool: async () => {
-					throw new Error("mcp down");
-				},
-			}),
-		).rejects.toThrow("mcp down");
-		expect(logger.error).toHaveBeenCalled();
+		expect(callTool).not.toHaveBeenCalled();
+		expect(infoCalls).toHaveLength(1);
+		expect(infoCalls[0]?.[0]).toBe("token usage");
+		expect(infoCalls[0]?.[1]).toMatchObject({
+			problemId: "math-001",
+			provider: "anthropic",
+			model: "gpt-4.1",
+		});
 	});
 });

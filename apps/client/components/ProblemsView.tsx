@@ -24,6 +24,10 @@ import {
 import { MarkdownContent } from "./MarkdownContent";
 import RiskBadge from "./RiskBadge";
 
+function isUsageResearchEntry(entry: { title?: string | null }) {
+	return entry.title?.toLowerCase().includes("token usage") ?? false;
+}
+
 interface ProblemItemExpandedProps {
 	categoryKey: string;
 	section: string;
@@ -258,6 +262,7 @@ function ProblemItemExpanded({
 							{researchEntries && researchEntries.length > 0 && (
 								<Box>
 									{researchEntries
+										.filter((entry) => !isUsageResearchEntry(entry))
 										.slice(-3)
 										.reverse()
 										.map((entry) => (
