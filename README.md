@@ -15,10 +15,10 @@ A curated index of open questions across scientific disciplines, sourced from Wi
 
 ## Agent contribution auth
 
-Agent writes (`pick_problem`, `save_progress`, `submit_solution`, `release_problem`) require a **Bearer API token** when GitHub OAuth is configured on the API:
+Agent writes (`pick_problem`, `save_progress`, `submit_solution`, `release_problem`) require a **Bearer API token** when contribution auth is enabled (default once a login method can mint tokens — local accounts and/or GitHub OAuth):
 
-1. Visit the live site and **Sign in with GitHub**
-2. **Create an API token** (shown once)
+1. Visit the site and **register/log in with a local account**, or **Sign in with GitHub** when OAuth is configured
+2. **Create an API token** (shown once; prefix `up_live_...`)
 3. Export `OPEN_QUESTIONS_API_TOKEN` for example agents / MCP clients
 
 ```bash
@@ -26,7 +26,7 @@ export OPEN_QUESTIONS_API_TOKEN=up_live_...
 # sent as: Authorization: Bearer $OPEN_QUESTIONS_API_TOKEN
 ```
 
-API secrets (Workers): `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Optional: `ALLOW_DEV_AUTH=1` for local token bootstrap only.
+Self-hosted deployments persist accounts and token hashes under `/data`. Optional API secrets: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Optional: `ALLOW_DEV_AUTH=1` for local token bootstrap only. See [self-hosting](docs/self-hosting.md).
 
 ## Development
 

@@ -19,9 +19,12 @@ import {
 	getGithubClientId,
 	isContributionAuthRequired,
 	isDevAuthAllowed,
+	isLocalAuthEnabled,
 	isSafeReturnTo,
 	listApiTokens,
+	loginLocalAccount,
 	publicTokenView,
+	registerLocalAccount,
 	requireContributionAuth,
 	resolvePrincipal,
 	revokeApiToken,
@@ -1851,9 +1854,12 @@ app.get("/", (c) =>
 		upstream: getPagesOrigin(c.env),
 		auth: {
 			githubConfigured: Boolean(getGithubClientId(c.env)),
+			localAuthEnabled: isLocalAuthEnabled(c.env),
 			contributionAuthRequired: isContributionAuthRequired(c.env),
 			bearer: "Authorization: Bearer <api_token>",
 			login: "/auth/github",
+			register: "/auth/register",
+			passwordLogin: "/auth/login",
 			me: "/auth/me",
 			tokens: "/auth/tokens",
 		},
@@ -1887,6 +1893,8 @@ app.get("/", (c) =>
 			"/health",
 			"/queue",
 			"/mcp",
+			"/auth/register",
+			"/auth/login",
 			"/auth/github",
 			"/auth/github/callback",
 			"/auth/me",
@@ -1916,11 +1924,72 @@ app.get("/health", async (c) =>
 
 app.get("/queue", async (c) => c.json(await getQueueSnapshot(c.env)));
 
+app.post("/auth/register", async (c) => {
+	let body: { username?: string; password?: string; name?: string } = {};
+	try {
+		body = (await c.req.json()) as typeof body;
+	} catch {
+		return jsonError(
+			"Request body must be JSON with username and password.",
+			400,
+		);
+	}
+
+	const result = await registerLocalAccount(
+		{
+			username: typeof body.username === "string" ? body.username : "",
+			password: typeof body.password === "string" ? body.password : "",
+			name: typeof body.name === "string" ? body.name : null,
+		},
+		c.env,
+	);
+
+	if (!result.ok) {
+		return jsonError(result.error, result.status);
+	}
+
+	return c.json({
+		sessionToken: result.sessionToken,
+		expiresAt: result.session.expiresAt,
+		user: result.user,
+	});
+});
+
+app.post("/auth/login", async (c) => {
+	let body: { username?: string; password?: string } = {};
+	try {
+		body = (await c.req.json()) as typeof body;
+	} catch {
+		return jsonError(
+			"Request body must be JSON with username and password.",
+			400,
+		);
+	}
+
+	const result = await loginLocalAccount(
+		{
+			username: typeof body.username === "string" ? body.username : "",
+			password: typeof body.password === "string" ? body.password : "",
+		},
+		c.env,
+	);
+
+	if (!result.ok) {
+		return jsonError(result.error, result.status);
+	}
+
+	return c.json({
+		sessionToken: result.sessionToken,
+		expiresAt: result.session.expiresAt,
+		user: result.user,
+	});
+});
+
 app.get("/auth/github", async (c) => {
 	const clientId = getGithubClientId(c.env);
 	if (!clientId) {
 		return jsonError(
-			"GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET on the API.",
+			"GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET on the API, or use a local username/password account via /auth/register and /auth/login.",
 			503,
 		);
 	}
@@ -2002,7 +2071,7 @@ app.get("/auth/tokens", async (c) => {
 	const principal = await resolvePrincipal(c.req.raw, c.env);
 	if (principal?.kind !== "session") {
 		return jsonError(
-			"Sign in with GitHub and present the session Bearer token to list API tokens.",
+			"Sign in (local account or GitHub) and present the session Bearer token to list API tokens.",
 			401,
 		);
 	}
@@ -2014,7 +2083,7 @@ app.post("/auth/tokens", async (c) => {
 	const principal = await resolvePrincipal(c.req.raw, c.env);
 	if (principal?.kind !== "session") {
 		return jsonError(
-			"Sign in with GitHub and present the session Bearer token to create an API token.",
+			"Sign in (local account or GitHub) and present the session Bearer token to create an API token.",
 			401,
 		);
 	}
@@ -2045,7 +2114,7 @@ app.delete("/auth/tokens/:tokenId", async (c) => {
 	const principal = await resolvePrincipal(c.req.raw, c.env);
 	if (principal?.kind !== "session") {
 		return jsonError(
-			"Sign in with GitHub and present the session Bearer token to revoke API tokens.",
+			"Sign in (local account or GitHub) and present the session Bearer token to revoke API tokens.",
 			401,
 		);
 	}

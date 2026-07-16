@@ -11,17 +11,21 @@ export type AuthBindings = {
 	AUTH_STORE?: DurableObjectNamespace;
 };
 
-export type GitHubUser = {
+/** Authenticated identity (GitHub OAuth or local username/password). */
+export type AuthUser = {
 	id: number;
 	login: string;
 	name: string | null;
 	avatarUrl: string | null;
 };
 
+/** @deprecated Prefer AuthUser — kept for call-site compatibility. */
+export type GitHubUser = AuthUser;
+
 export type SessionRecord = {
 	sessionId: string;
 	tokenHash: string;
-	user: GitHubUser;
+	user: AuthUser;
 	createdAt: string;
 	expiresAt: string;
 };
@@ -31,10 +35,19 @@ export type ApiTokenRecord = {
 	tokenHash: string;
 	tokenPrefix: string;
 	label: string;
-	user: GitHubUser;
+	user: AuthUser;
 	createdAt: string;
 	lastUsedAt: string | null;
 	revokedAt: string | null;
+};
+
+/** Local username/password account. Password material is never returned publicly. */
+export type LocalAccountRecord = {
+	username: string;
+	passwordHash: string;
+	passwordSalt: string;
+	user: AuthUser;
+	createdAt: string;
 };
 
 export type AuthStoreState = {
@@ -42,11 +55,15 @@ export type AuthStoreState = {
 	tokensById: Record<string, ApiTokenRecord>;
 	/** sha256(token) -> tokenId or sessionId with kind prefix */
 	lookupByHash: Record<string, string>;
+	/** lowercase username -> local account */
+	accountsByUsername: Record<string, LocalAccountRecord>;
+	/** Next numeric id for local users (avoids GitHub id collisions). */
+	nextLocalUserId: number;
 };
 
 export type AuthenticatedPrincipal = {
 	kind: "session" | "api_token";
-	user: GitHubUser;
+	user: AuthUser;
 	sessionId?: string;
 	tokenId?: string;
 	label?: string;
@@ -58,7 +75,20 @@ export type PublicApiToken = {
 	label: string;
 	createdAt: string;
 	lastUsedAt: string | null;
-	user: Pick<GitHubUser, "id" | "login" | "name" | "avatarUrl">;
+	user: Pick<AuthUser, "id" | "login" | "name" | "avatarUrl">;
+};
+
+export type LocalAuthValidationError = {
+	ok: false;
+	status: 400 | 409 | 401;
+	error: string;
+};
+
+export type LocalAuthSuccess = {
+	ok: true;
+	user: AuthUser;
+	sessionToken: string;
+	session: SessionRecord;
 };
 
 export const CONTRIBUTION_TOOLS = new Set([
@@ -71,6 +101,14 @@ export const CONTRIBUTION_TOOLS = new Set([
 const DEFAULT_PAGES_ORIGIN = "https://geoffsee.github.io/open-questions";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
+/** Local account ids start here so they do not collide with typical GitHub user ids. */
+export const LOCAL_USER_ID_BASE = 1_000_000_000;
+const PBKDF2_ITERATIONS = 100_000;
+const PASSWORD_SALT_BYTES = 16;
+const PASSWORD_HASH_BITS = 256;
+const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$/;
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
 
 let authStore: StateStore<AuthStoreState> | undefined;
 
@@ -79,6 +117,8 @@ export function emptyAuthState(): AuthStoreState {
 		sessionsById: {},
 		tokensById: {},
 		lookupByHash: {},
+		accountsByUsername: {},
+		nextLocalUserId: LOCAL_USER_ID_BASE,
 	};
 }
 
@@ -108,21 +148,48 @@ function getLocalAuthPath() {
 	}
 }
 
+/** Normalize partial/legacy auth blobs (missing local-account fields). */
+export function normalizeAuthState(
+	state: Partial<AuthStoreState> | null | undefined,
+): AuthStoreState {
+	const base = emptyAuthState();
+	if (!state) return base;
+	return {
+		sessionsById: state.sessionsById ?? base.sessionsById,
+		tokensById: state.tokensById ?? base.tokensById,
+		lookupByHash: state.lookupByHash ?? base.lookupByHash,
+		accountsByUsername: state.accountsByUsername ?? base.accountsByUsername,
+		nextLocalUserId:
+			typeof state.nextLocalUserId === "number" &&
+			Number.isFinite(state.nextLocalUserId)
+				? state.nextLocalUserId
+				: base.nextLocalUserId,
+	};
+}
+
 export function cloneAuthState(state: AuthStoreState): AuthStoreState {
+	const normalized = normalizeAuthState(state);
 	return {
 		sessionsById: Object.fromEntries(
-			Object.entries(state.sessionsById).map(([key, value]) => [
+			Object.entries(normalized.sessionsById).map(([key, value]) => [
 				key,
 				{ ...value, user: { ...value.user } },
 			]),
 		),
 		tokensById: Object.fromEntries(
-			Object.entries(state.tokensById).map(([key, value]) => [
+			Object.entries(normalized.tokensById).map(([key, value]) => [
 				key,
 				{ ...value, user: { ...value.user } },
 			]),
 		),
-		lookupByHash: { ...state.lookupByHash },
+		lookupByHash: { ...normalized.lookupByHash },
+		accountsByUsername: Object.fromEntries(
+			Object.entries(normalized.accountsByUsername).map(([key, value]) => [
+				key,
+				{ ...value, user: { ...value.user } },
+			]),
+		),
+		nextLocalUserId: normalized.nextLocalUserId,
 	};
 }
 
@@ -209,8 +276,10 @@ export function isDevAuthAllowed(env?: AuthBindings) {
 }
 
 /**
- * Contribution (write) tools require a Bearer API token once GitHub OAuth is
- * configured, or when CONTRIBUTION_AUTH_REQUIRED=1. Tests can set AUTH_DISABLED=1.
+ * Contribution (write) tools require a Bearer API token once a login method can
+ * mint tokens: GitHub OAuth is configured, local accounts are available (default),
+ * or CONTRIBUTION_AUTH_REQUIRED=1. Public catalog reads stay open. Tests can set
+ * AUTH_DISABLED=1 or CONTRIBUTION_AUTH_REQUIRED=0.
  */
 export function isContributionAuthRequired(env?: AuthBindings) {
 	if (isAuthDisabled(env)) return false;
@@ -226,7 +295,13 @@ export function isContributionAuthRequired(env?: AuthBindings) {
 	) {
 		return false;
 	}
-	return Boolean(getGithubClientId(env));
+	// Either GitHub OAuth or local username/password can issue contribution tokens.
+	return Boolean(getGithubClientId(env)) || isLocalAuthEnabled(env);
+}
+
+/** Local username/password auth is available unless AUTH_DISABLED=1. */
+export function isLocalAuthEnabled(env?: AuthBindings) {
+	return !isAuthDisabled(env);
 }
 
 export function isSafeReturnTo(returnTo: string, env?: AuthBindings): boolean {
@@ -252,15 +327,107 @@ export function isSafeReturnTo(returnTo: string, env?: AuthBindings): boolean {
 export async function sha256Hex(value: string): Promise<string> {
 	const data = new TextEncoder().encode(value);
 	const digest = await crypto.subtle.digest("SHA-256", data);
-	return [...new Uint8Array(digest)]
-		.map((byte) => byte.toString(16).padStart(2, "0"))
-		.join("");
+	return bytesToHex(new Uint8Array(digest));
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+	return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(hex: string): Uint8Array {
+	const clean = hex.trim();
+	if (clean.length % 2 !== 0) {
+		throw new Error("Invalid hex string.");
+	}
+	const out = new Uint8Array(clean.length / 2);
+	for (let i = 0; i < out.length; i += 1) {
+		out[i] = Number.parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+	}
+	return out;
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+	if (a.length !== b.length) return false;
+	let mismatch = 0;
+	for (let i = 0; i < a.length; i += 1) {
+		mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	}
+	return mismatch === 0;
 }
 
 function randomToken(bytes = 32): string {
 	const buffer = new Uint8Array(bytes);
 	crypto.getRandomValues(buffer);
-	return [...buffer].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+	return bytesToHex(buffer);
+}
+
+export function normalizeUsername(username: string): string {
+	return username.trim().toLowerCase();
+}
+
+export function validateUsername(username: string): string | null {
+	const trimmed = username.trim();
+	if (!trimmed) return "Username is required.";
+	if (!USERNAME_PATTERN.test(trimmed)) {
+		return "Username must be 3–32 characters, start with a letter or number, and contain only letters, numbers, underscores, or hyphens.";
+	}
+	return null;
+}
+
+export function validatePassword(password: string): string | null {
+	if (typeof password !== "string" || !password) {
+		return "Password is required.";
+	}
+	if (password.length < MIN_PASSWORD_LENGTH) {
+		return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+	}
+	if (password.length > MAX_PASSWORD_LENGTH) {
+		return `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`;
+	}
+	return null;
+}
+
+export async function hashPassword(
+	password: string,
+	saltHex?: string,
+): Promise<{ hash: string; salt: string }> {
+	const salt = saltHex
+		? hexToBytes(saltHex)
+		: crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
+	const key = await crypto.subtle.importKey(
+		"raw",
+		new TextEncoder().encode(password),
+		"PBKDF2",
+		false,
+		["deriveBits"],
+	);
+	const bits = await crypto.subtle.deriveBits(
+		{
+			name: "PBKDF2",
+			salt,
+			iterations: PBKDF2_ITERATIONS,
+			hash: "SHA-256",
+		},
+		key,
+		PASSWORD_HASH_BITS,
+	);
+	return {
+		salt: bytesToHex(salt instanceof Uint8Array ? salt : new Uint8Array(salt)),
+		hash: bytesToHex(new Uint8Array(bits)),
+	};
+}
+
+export async function verifyPassword(
+	password: string,
+	salt: string,
+	expectedHash: string,
+): Promise<boolean> {
+	try {
+		const { hash } = await hashPassword(password, salt);
+		return timingSafeEqualHex(hash, expectedHash);
+	} catch {
+		return false;
+	}
 }
 
 export function parseBearerToken(request: Request): string | null {
@@ -379,7 +546,7 @@ export async function resolvePrincipal(
 }
 
 export async function createSession(
-	user: GitHubUser,
+	user: AuthUser,
 	env?: AuthBindings,
 ): Promise<{ sessionToken: string; session: SessionRecord }> {
 	const sessionId = `sess_${randomToken(12)}`;
@@ -433,7 +600,7 @@ export async function revokeSession(
 }
 
 export async function createApiToken(
-	user: GitHubUser,
+	user: AuthUser,
 	label: string,
 	env?: AuthBindings,
 ): Promise<{ token: string; record: ApiTokenRecord }> {
@@ -511,6 +678,213 @@ export async function revokeApiToken(
 	delete state.lookupByHash[record.tokenHash];
 	writeLocalAuthState(state);
 	return true;
+}
+
+function publicUserView(user: AuthUser): AuthUser {
+	return {
+		id: user.id,
+		login: user.login,
+		name: user.name,
+		avatarUrl: user.avatarUrl,
+	};
+}
+
+async function readAccountByUsername(
+	username: string,
+	env?: AuthBindings,
+): Promise<LocalAccountRecord | null> {
+	const key = normalizeUsername(username);
+	if (!key) return null;
+
+	if (env?.AUTH_STORE) {
+		const result = (await callAuthObject(
+			env,
+			`/accounts/${encodeURIComponent(key)}`,
+		)) as { account: LocalAccountRecord | null };
+		return result.account;
+	}
+
+	const state = readLocalAuthState();
+	return state.accountsByUsername[key] ?? null;
+}
+
+async function createLocalAccountRecord(
+	input: {
+		username: string;
+		passwordHash: string;
+		passwordSalt: string;
+		name: string | null;
+	},
+	env?: AuthBindings,
+): Promise<
+	{ ok: true; account: LocalAccountRecord } | { ok: false; error: string }
+> {
+	if (env?.AUTH_STORE) {
+		const id = env.AUTH_STORE?.idFromName("global");
+		const stub = id && env.AUTH_STORE?.get(id);
+		if (!stub) {
+			throw new Error("AUTH_STORE Durable Object binding is not configured.");
+		}
+		const response = await stub.fetch("https://auth-store.internal/accounts", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(input),
+		});
+		if (response.status === 409) {
+			return { ok: false, error: "That username is already taken." };
+		}
+		if (!response.ok) {
+			const message = await response.text();
+			throw new Error(
+				message || `Auth store request failed with ${response.status}.`,
+			);
+		}
+		const result = (await response.json()) as { account: LocalAccountRecord };
+		return { ok: true, account: result.account };
+	}
+
+	const state = readLocalAuthState();
+	const key = normalizeUsername(input.username);
+	if (state.accountsByUsername[key]) {
+		return { ok: false, error: "That username is already taken." };
+	}
+	const userId = state.nextLocalUserId;
+	state.nextLocalUserId = userId + 1;
+	const account: LocalAccountRecord = {
+		username: key,
+		passwordHash: input.passwordHash,
+		passwordSalt: input.passwordSalt,
+		user: {
+			id: userId,
+			login: key,
+			name: input.name,
+			avatarUrl: null,
+		},
+		createdAt: nowIso(),
+	};
+	state.accountsByUsername[key] = account;
+	writeLocalAuthState(state);
+	return { ok: true, account };
+}
+
+/**
+ * Create a local username/password account and open a session.
+ * Returns structured validation errors for the HTTP layer.
+ */
+export async function registerLocalAccount(
+	input: {
+		username: string;
+		password: string;
+		name?: string | null;
+	},
+	env?: AuthBindings,
+): Promise<LocalAuthSuccess | LocalAuthValidationError> {
+	if (!isLocalAuthEnabled(env)) {
+		return {
+			ok: false,
+			status: 400,
+			error: "Local authentication is disabled on this API.",
+		};
+	}
+
+	const usernameError = validateUsername(input.username);
+	if (usernameError) {
+		return { ok: false, status: 400, error: usernameError };
+	}
+	const passwordError = validatePassword(input.password);
+	if (passwordError) {
+		return { ok: false, status: 400, error: passwordError };
+	}
+
+	const username = normalizeUsername(input.username);
+	const existing = await readAccountByUsername(username, env);
+	if (existing) {
+		return { ok: false, status: 409, error: "That username is already taken." };
+	}
+
+	const { hash, salt } = await hashPassword(input.password);
+	const name =
+		typeof input.name === "string" && input.name.trim()
+			? input.name.trim().slice(0, 80)
+			: null;
+
+	const saved = await createLocalAccountRecord(
+		{
+			username,
+			passwordHash: hash,
+			passwordSalt: salt,
+			name,
+		},
+		env,
+	);
+	if (!saved.ok) {
+		return { ok: false, status: 409, error: saved.error };
+	}
+
+	const { sessionToken, session } = await createSession(
+		saved.account.user,
+		env,
+	);
+	return {
+		ok: true,
+		user: publicUserView(saved.account.user),
+		sessionToken,
+		session,
+	};
+}
+
+/**
+ * Authenticate a local username/password and open a session.
+ * Uses a generic error for bad credentials to avoid user enumeration.
+ */
+export async function loginLocalAccount(
+	input: { username: string; password: string },
+	env?: AuthBindings,
+): Promise<LocalAuthSuccess | LocalAuthValidationError> {
+	if (!isLocalAuthEnabled(env)) {
+		return {
+			ok: false,
+			status: 400,
+			error: "Local authentication is disabled on this API.",
+		};
+	}
+
+	const username = typeof input.username === "string" ? input.username : "";
+	const password = typeof input.password === "string" ? input.password : "";
+	if (!username.trim() || !password) {
+		return {
+			ok: false,
+			status: 400,
+			error: "Username and password are required.",
+		};
+	}
+
+	const account = await readAccountByUsername(username, env);
+	const invalid = {
+		ok: false as const,
+		status: 401 as const,
+		error: "Invalid username or password.",
+	};
+	if (!account) {
+		// Dummy hash work to reduce timing differences when the user is missing.
+		await hashPassword(password);
+		return invalid;
+	}
+
+	const valid = await verifyPassword(
+		password,
+		account.passwordSalt,
+		account.passwordHash,
+	);
+	if (!valid) return invalid;
+
+	const { sessionToken, session } = await createSession(account.user, env);
+	return {
+		ok: true,
+		user: publicUserView(account.user),
+		sessionToken,
+		session,
+	};
 }
 
 function toBase64Url(bytes: Uint8Array | string): string {
@@ -664,7 +1038,7 @@ export async function exchangeGithubCode(
 export function unauthorizedContributionMessage() {
 	return [
 		"Authentication required for agent contributions.",
-		"Sign in with GitHub at the Catalog site, create an API token, and send it as Authorization: Bearer <token>.",
+		"Sign in on the Catalog site (local account or GitHub), create an API token, and send it as Authorization: Bearer <token>.",
 	].join(" ");
 }
 
@@ -690,7 +1064,7 @@ export class AuthStoreDurableObject {
 
 	private async readState(): Promise<AuthStoreState> {
 		const stored = await this.state.storage.get<AuthStoreState>("auth");
-		const auth = cloneAuthState(stored ?? emptyAuthState());
+		const auth = cloneAuthState(normalizeAuthState(stored));
 		if (pruneExpiredSessions(auth)) {
 			await this.state.storage.put("auth", auth);
 		}
@@ -798,6 +1172,64 @@ export class AuthStoreDurableObject {
 			delete auth.lookupByHash[record.tokenHash];
 			await this.writeState(auth);
 			return Response.json({ ok: true });
+		}
+
+		const getAccount = url.pathname.match(/^\/accounts\/([^/]+)$/);
+		if (getAccount && request.method === "GET") {
+			const username = normalizeUsername(
+				decodeURIComponent(getAccount[1] ?? ""),
+			);
+			return Response.json({
+				account: auth.accountsByUsername[username] ?? null,
+			});
+		}
+
+		if (url.pathname === "/accounts" && request.method === "POST") {
+			const body = (await request.json()) as {
+				username?: string;
+				passwordHash?: string;
+				passwordSalt?: string;
+				name?: string | null;
+			};
+			const username = normalizeUsername(body.username ?? "");
+			if (
+				!username ||
+				!body.passwordHash ||
+				!body.passwordSalt ||
+				typeof body.passwordHash !== "string" ||
+				typeof body.passwordSalt !== "string"
+			) {
+				return Response.json(
+					{ error: "Invalid account payload." },
+					{ status: 400 },
+				);
+			}
+			if (auth.accountsByUsername[username]) {
+				return Response.json(
+					{ error: "That username is already taken." },
+					{ status: 409 },
+				);
+			}
+			const userId = auth.nextLocalUserId;
+			auth.nextLocalUserId = userId + 1;
+			const account: LocalAccountRecord = {
+				username,
+				passwordHash: body.passwordHash,
+				passwordSalt: body.passwordSalt,
+				user: {
+					id: userId,
+					login: username,
+					name:
+						typeof body.name === "string" && body.name.trim()
+							? body.name.trim().slice(0, 80)
+							: null,
+					avatarUrl: null,
+				},
+				createdAt: nowIso(),
+			};
+			auth.accountsByUsername[username] = account;
+			await this.writeState(auth);
+			return Response.json({ account });
 		}
 
 		return new Response("Not found", { status: 404 });

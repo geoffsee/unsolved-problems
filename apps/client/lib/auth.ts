@@ -19,6 +19,12 @@ export type AuthMe = {
 	contributionAuthRequired: boolean;
 };
 
+export type AuthConfig = {
+	githubConfigured: boolean;
+	localAuthEnabled: boolean;
+	contributionAuthRequired: boolean;
+};
+
 export type ApiTokenSummary = {
 	tokenId: string;
 	tokenPrefix: string;
@@ -35,6 +41,12 @@ export type CreatedApiToken = {
 	label: string;
 	createdAt: string;
 	warning: string;
+};
+
+export type LocalAuthSession = {
+	sessionToken: string;
+	expiresAt: string;
+	user: AuthUser;
 };
 
 export function getStoredSessionToken(): string | null {
@@ -88,6 +100,16 @@ export function githubLoginUrl(returnTo?: string): string {
 	return url.toString();
 }
 
+async function parseErrorMessage(
+	response: Response,
+	fallback: string,
+): Promise<string> {
+	const body = (await response.json().catch(() => null)) as {
+		error?: string;
+	} | null;
+	return body?.error || fallback;
+}
+
 async function authFetch(
 	path: string,
 	init: RequestInit = {},
@@ -105,6 +127,71 @@ async function authFetch(
 		...init,
 		headers,
 	});
+}
+
+export async function fetchAuthConfig(): Promise<AuthConfig> {
+	const response = await fetch(`${AGENT_RESEARCH_API_ORIGIN}/`);
+	if (!response.ok) {
+		throw new Error(`Auth config failed with ${response.status}`);
+	}
+	const payload = (await response.json()) as {
+		auth?: {
+			githubConfigured?: boolean;
+			localAuthEnabled?: boolean;
+			contributionAuthRequired?: boolean;
+		};
+	};
+	return {
+		githubConfigured: Boolean(payload.auth?.githubConfigured),
+		localAuthEnabled: payload.auth?.localAuthEnabled !== false,
+		contributionAuthRequired: Boolean(payload.auth?.contributionAuthRequired),
+	};
+}
+
+export async function registerLocalAccount(
+	username: string,
+	password: string,
+	name?: string,
+): Promise<LocalAuthSession> {
+	const response = await fetch(`${AGENT_RESEARCH_API_ORIGIN}/auth/register`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			username,
+			password,
+			...(name?.trim() ? { name: name.trim() } : {}),
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(
+			await parseErrorMessage(
+				response,
+				`Registration failed with ${response.status}`,
+			),
+		);
+	}
+	const session = (await response.json()) as LocalAuthSession;
+	storeSessionToken(session.sessionToken);
+	return session;
+}
+
+export async function loginLocalAccount(
+	username: string,
+	password: string,
+): Promise<LocalAuthSession> {
+	const response = await fetch(`${AGENT_RESEARCH_API_ORIGIN}/auth/login`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ username, password }),
+	});
+	if (!response.ok) {
+		throw new Error(
+			await parseErrorMessage(response, `Login failed with ${response.status}`),
+		);
+	}
+	const session = (await response.json()) as LocalAuthSession;
+	storeSessionToken(session.sessionToken);
+	return session;
 }
 
 export async function fetchAuthMe(

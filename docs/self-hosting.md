@@ -10,6 +10,9 @@ The root Docker image runs one Muxox-supervised container with three endpoints:
 The API stores run history and cron claims in SQLite under `/data`. Workflows
 and local actions are loaded from the fixed `/workspace/.github` mount.
 
+Application auth (sessions, local accounts, and contribution API tokens) is
+persisted in `/data/open-questions.sqlite` alongside queue state.
+
 ## Requirements
 
 - Docker Engine or Docker Desktop
@@ -57,20 +60,64 @@ Omit `--env-file .env.actions` when the file is not needed.
 | `PAGES_ORIGIN` | `http://localhost:3031` | Client origin allowed for OAuth redirects |
 | `GITHUB_CLIENT_ID` | unset | Optional GitHub OAuth client ID |
 | `GITHUB_CLIENT_SECRET` | unset | Optional GitHub OAuth client secret |
+| `CONTRIBUTION_AUTH_REQUIRED` | unset | Force (`1`) or disable (`0`) Bearer tokens on write tools; default requires auth when local accounts or GitHub OAuth can mint tokens |
+| `AUTH_DISABLED` | unset | Set `1` only for open local development (disables auth enforcement and local account endpoints) |
 | `REPOSITORY_ROOT` | `/workspace` | Repository root containing `.github` |
 | `DATABASE_URL` | `sqlite:///data/local-action.sqlite` | Run and cron state |
+| `DATABASE_PATH` | `/data/open-questions.sqlite` | Application queue + auth SQLite store |
 | `API_TOKEN` | unset | Optional bearer token protecting API routes except health |
 
 The application API is available at `http://localhost:3040`. Its user-facing
-OAuth and API-key endpoints are under `/auth`; the action API remains at
+auth and API-key endpoints are under `/auth`; the action API remains at
 `http://localhost:3030`.
 
-`API_TOKEN` protects the local action API only. The application API uses GitHub
-OAuth to identify users and issue per-user `up_live_...` API keys. Configure
-`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `PAGES_ORIGIN` in
-`.env.actions` for self-hosted OAuth. If OAuth is unavailable, users cannot
-log in or create contribution API keys; the application API remains available
-for public, read-only data.
+`API_TOKEN` protects the local action API only. The application API supports:
+
+1. **Local username/password accounts** (always available unless `AUTH_DISABLED=1`)
+   - `POST /auth/register` — create an account and session
+   - `POST /auth/login` — exchange credentials for a session
+2. **Optional GitHub OAuth** when `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
+   are set (`/auth/github` and `/auth/github/callback`)
+
+After signing in (local session or GitHub session), users can create, list, and
+revoke personal `up_live_...` contribution API tokens via `/auth/tokens`. Agent
+write tools require `Authorization: Bearer <token>` when contribution auth is
+required (the default for self-hosted deployments).
+
+Public catalog reads (`/data/*`, problem listings, queue snapshots) remain
+available without authentication when OAuth is unconfigured. Only contribution
+writes are gated.
+
+Auth data (accounts, sessions, API token hashes) lives in the `/data` volume
+through `DATABASE_PATH=/data/open-questions.sqlite`. Deleting the volume wipes
+local accounts and issued tokens.
+
+## Local account quick start
+
+```bash
+# Register
+curl -sS -X POST http://localhost:3040/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"username":"operator","password":"change-me-now","name":"Operator"}'
+
+# Log in
+curl -sS -X POST http://localhost:3040/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"operator","password":"change-me-now"}'
+
+# Create a contribution token (use sessionToken from login/register)
+curl -sS -X POST http://localhost:3040/auth/tokens \
+  -H 'content-type: application/json' \
+  -H "authorization: Bearer $SESSION_TOKEN" \
+  -d '{"label":"morning agent"}'
+```
+
+Usernames are case-insensitive (3–32 characters: letters, numbers, `_`, `-`).
+Passwords must be at least 8 characters. Passwords are stored as PBKDF2-SHA256
+hashes with a random salt; plaintext is never persisted.
+
+The client auth panel at <http://localhost:3031> exposes the same register and
+login flows alongside **Sign in with GitHub** when OAuth is configured.
 
 ## Operations
 
@@ -82,5 +129,5 @@ docker compose down
 ```
 
 The named data volume remains after `docker compose down`. Use
-`docker compose down --volumes` only when the stored action history and cron
-claims should be deleted.
+`docker compose down --volumes` only when the stored action history, cron
+claims, local accounts, and API tokens should be deleted.

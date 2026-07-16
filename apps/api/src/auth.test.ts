@@ -7,16 +7,24 @@ import {
 	createOAuthState,
 	createSession,
 	getGithubClientId,
+	hashPassword,
 	isContributionAuthRequired,
+	isLocalAuthEnabled,
 	isSafeReturnTo,
+	listApiTokens,
+	loginLocalAccount,
 	parseBearerToken,
+	registerLocalAccount,
 	requireContributionAuth,
 	resetLocalAuthStateForTests,
 	resolvePrincipal,
 	revokeApiToken,
 	sanitizeSecretValue,
 	sha256Hex,
+	validatePassword,
+	validateUsername,
 	verifyOAuthState,
+	verifyPassword,
 } from "./auth";
 import app, { resetLocalRuntimeStateForTests } from "./main";
 
@@ -39,6 +47,8 @@ beforeEach(() => {
 			sessionsById: {},
 			tokensById: {},
 			lookupByHash: {},
+			accountsByUsername: {},
+			nextLocalUserId: 1_000_000_000,
 		}),
 	);
 	writeFileSync(
@@ -136,6 +146,7 @@ describe("auth helpers", () => {
 
 	test("requireContributionAuth accepts only api tokens when required", () => {
 		expect(isContributionAuthRequired()).toBe(true);
+		expect(isLocalAuthEnabled()).toBe(true);
 		expect(
 			requireContributionAuth({
 				kind: "api_token",
@@ -151,6 +162,24 @@ describe("auth helpers", () => {
 			}),
 		).toBeNull();
 		expect(requireContributionAuth(null)).toBeNull();
+	});
+
+	test("username and password validation", () => {
+		expect(validateUsername("ab")).toContain("3–32");
+		expect(validateUsername("good_user-1")).toBeNull();
+		expect(validateUsername("bad user")).not.toBeNull();
+		expect(validatePassword("short")).toContain("at least 8");
+		expect(validatePassword("long-enough-password")).toBeNull();
+	});
+
+	test("password hash verifies and rejects wrong password", async () => {
+		const { hash, salt } = await hashPassword("correct-horse");
+		await expect(verifyPassword("correct-horse", salt, hash)).resolves.toBe(
+			true,
+		);
+		await expect(verifyPassword("wrong-password", salt, hash)).resolves.toBe(
+			false,
+		);
 	});
 });
 
@@ -204,9 +233,149 @@ describe("token lifecycle", () => {
 		expect(principal?.kind).toBe("session");
 		expect(requireContributionAuth(principal)).toBeNull();
 	});
+
+	test("local account register, login, and token ownership", async () => {
+		const registered = await registerLocalAccount({
+			username: "Alice_Ops",
+			password: "secure-pass-1",
+			name: "Alice",
+		});
+		expect(registered.ok).toBe(true);
+		if (!registered.ok) return;
+
+		expect(registered.user.login).toBe("alice_ops");
+		expect(registered.user.name).toBe("Alice");
+		expect(registered.sessionToken.startsWith("up_sess_")).toBe(true);
+
+		const sessionPrincipal = await resolvePrincipal(
+			new Request("http://localhost", {
+				headers: { authorization: `Bearer ${registered.sessionToken}` },
+			}),
+		);
+		expect(sessionPrincipal).toMatchObject({
+			kind: "session",
+			user: { login: "alice_ops" },
+		});
+
+		const duplicate = await registerLocalAccount({
+			username: "alice_ops",
+			password: "another-pass-9",
+		});
+		expect(duplicate).toMatchObject({ ok: false, status: 409 });
+
+		const badLogin = await loginLocalAccount({
+			username: "alice_ops",
+			password: "wrong-password",
+		});
+		expect(badLogin).toMatchObject({ ok: false, status: 401 });
+
+		const login = await loginLocalAccount({
+			username: "Alice_Ops",
+			password: "secure-pass-1",
+		});
+		expect(login.ok).toBe(true);
+		if (!login.ok) return;
+
+		const { token, record } = await createApiToken(
+			login.user,
+			"self-host agent",
+		);
+		expect(token.startsWith("up_live_")).toBe(true);
+		const tokens = await listApiTokens(login.user.id);
+		expect(tokens.some((item) => item.tokenId === record.tokenId)).toBe(true);
+
+		const other = await registerLocalAccount({
+			username: "bob_ops",
+			password: "secure-pass-2",
+		});
+		expect(other.ok).toBe(true);
+		if (!other.ok) return;
+		const revokedByOther = await revokeApiToken(record.tokenId, other.user.id);
+		expect(revokedByOther).toBe(false);
+		const revoked = await revokeApiToken(record.tokenId, login.user.id);
+		expect(revoked).toBe(true);
+	});
 });
 
 describe("auth HTTP + MCP enforcement", () => {
+	test("register and login HTTP endpoints issue session tokens", async () => {
+		const register = await app.fetch(
+			new Request("http://localhost/auth/register", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					username: "web_user",
+					password: "password123",
+					name: "Web",
+				}),
+			}),
+		);
+		expect(register.status).toBe(200);
+		const registered = (await register.json()) as {
+			sessionToken: string;
+			user: { login: string };
+		};
+		expect(registered.sessionToken.startsWith("up_sess_")).toBe(true);
+		expect(registered.user.login).toBe("web_user");
+
+		const weak = await app.fetch(
+			new Request("http://localhost/auth/register", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ username: "x", password: "short" }),
+			}),
+		);
+		expect(weak.status).toBe(400);
+
+		const login = await app.fetch(
+			new Request("http://localhost/auth/login", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					username: "web_user",
+					password: "password123",
+				}),
+			}),
+		);
+		expect(login.status).toBe(200);
+		const loggedIn = (await login.json()) as { sessionToken: string };
+
+		const create = await app.fetch(
+			new Request("http://localhost/auth/tokens", {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					authorization: `Bearer ${loggedIn.sessionToken}`,
+				},
+				body: JSON.stringify({ label: "from-local-session" }),
+			}),
+		);
+		expect(create.status).toBe(200);
+		const created = (await create.json()) as { token: string; tokenId: string };
+		expect(created.token.startsWith("up_live_")).toBe(true);
+
+		const list = await app.fetch(
+			new Request("http://localhost/auth/tokens", {
+				headers: { authorization: `Bearer ${loggedIn.sessionToken}` },
+			}),
+		);
+		expect(list.status).toBe(200);
+		const listed = (await list.json()) as {
+			tokens: Array<{ tokenId: string }>;
+		};
+		expect(
+			listed.tokens.some((token) => token.tokenId === created.tokenId),
+		).toBe(true);
+
+		const revoke = await app.fetch(
+			new Request(`http://localhost/auth/tokens/${created.tokenId}`, {
+				method: "DELETE",
+				headers: { authorization: `Bearer ${loggedIn.sessionToken}` },
+			}),
+		);
+		expect(revoke.status).toBe(200);
+	});
+
 	test("dev token endpoint mints a usable bearer token", async () => {
 		const response = await app.fetch(
 			new Request("http://localhost/auth/dev/token", {

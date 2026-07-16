@@ -23,4 +23,11 @@ describe("auth client helpers", () => {
 			"https://geoffsee.github.io/open-questions/?x=1&y=2",
 		);
 	});
+
+	test("local auth endpoints are under the API origin", () => {
+		expect(`${AGENT_RESEARCH_API_ORIGIN}/auth/register`).toContain(
+			"/auth/register",
+		);
+		expect(`${AGENT_RESEARCH_API_ORIGIN}/auth/login`).toContain("/auth/login");
+	});
 });

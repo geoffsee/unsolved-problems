@@ -10,21 +10,30 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import {
 	type ApiTokenSummary,
+	type AuthConfig,
 	type AuthMe,
 	type CreatedApiToken,
 	captureOAuthSessionFromHash,
 	createApiToken,
 	fetchApiTokens,
+	fetchAuthConfig,
 	fetchAuthMe,
 	githubLoginUrl,
+	loginLocalAccount,
 	logoutSession,
+	registerLocalAccount,
 	revokeApiToken,
 } from "../lib/auth";
 
 export default function AuthPanel() {
 	const [me, setMe] = useState<AuthMe | null>(null);
+	const [config, setConfig] = useState<AuthConfig | null>(null);
 	const [tokens, setTokens] = useState<ApiTokenSummary[]>([]);
 	const [label, setLabel] = useState("Morning agent");
+	const [username, setUsername] = useState("");
+	const [password, setPassword] = useState("");
+	const [displayName, setDisplayName] = useState("");
+	const [mode, setMode] = useState<"login" | "register">("login");
 	const [created, setCreated] = useState<CreatedApiToken | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -34,8 +43,12 @@ export default function AuthPanel() {
 		setError(null);
 		try {
 			captureOAuthSessionFromHash();
-			const profile = await fetchAuthMe();
+			const [profile, authConfig] = await Promise.all([
+				fetchAuthMe(),
+				fetchAuthConfig().catch(() => null),
+			]);
 			setMe(profile);
+			if (authConfig) setConfig(authConfig);
 			if (profile?.kind === "session") {
 				const list = await fetchApiTokens();
 				setTokens(list);
@@ -52,6 +65,25 @@ export default function AuthPanel() {
 	useEffect(() => {
 		void refresh();
 	}, [refresh]);
+
+	const onLocalAuth = async (action: "login" | "register") => {
+		setBusy(true);
+		setError(null);
+		setCreated(null);
+		try {
+			if (action === "register") {
+				await registerLocalAccount(username, password, displayName);
+			} else {
+				await loginLocalAccount(username, password);
+			}
+			setPassword("");
+			await refresh();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Authentication failed.");
+		} finally {
+			setBusy(false);
+		}
+	};
 
 	const onCreate = async () => {
 		setBusy(true);
@@ -102,6 +134,9 @@ export default function AuthPanel() {
 		window.setTimeout(() => setCopied(false), 1600);
 	};
 
+	const localAuthEnabled = config?.localAuthEnabled !== false;
+	const githubConfigured = config?.githubConfigured === true;
+
 	return (
 		<Box maxW="860px" mx="auto" px={6} pt={2} pb={2}>
 			<Box
@@ -125,7 +160,7 @@ export default function AuthPanel() {
 						color="#9ab8ff"
 						textTransform="none"
 					>
-						GitHub + Bearer API token
+						Local accounts + optional GitHub + Bearer API token
 					</Badge>
 				</Flex>
 
@@ -140,8 +175,8 @@ export default function AuthPanel() {
 					Authenticate before launching agents
 				</Heading>
 				<Text color="app.text" fontSize="0.9rem" lineHeight="1.7" mb={4}>
-					Sign in with GitHub on this site, create an API token, and pass it to
-					your agent as{" "}
+					Create a local account or sign in with GitHub, mint an API token, and
+					pass it to your agent as{" "}
 					<Text as="span" fontFamily="mono" color="app.textBright">
 						Authorization: Bearer &lt;token&gt;
 					</Text>
@@ -156,18 +191,130 @@ export default function AuthPanel() {
 				) : null}
 
 				{!me ? (
-					<Button
-						bg="rgba(122, 162, 247, 0.18)"
-						color="#dfe8ff"
-						border="1px solid"
-						borderColor="rgba(122, 162, 247, 0.35)"
-						_hover={{ bg: "rgba(122, 162, 247, 0.28)" }}
-						onClick={() => {
-							window.location.href = githubLoginUrl();
-						}}
-					>
-						Sign in with GitHub
-					</Button>
+					<Box>
+						{localAuthEnabled ? (
+							<Box mb={4}>
+								<Flex gap={2} mb={3}>
+									<Button
+										size="sm"
+										variant={mode === "login" ? "solid" : "outline"}
+										bg={
+											mode === "login"
+												? "rgba(122, 162, 247, 0.22)"
+												: "transparent"
+										}
+										color={mode === "login" ? "#dfe8ff" : "app.textDim"}
+										borderColor="app.borderLight"
+										onClick={() => setMode("login")}
+									>
+										Log in
+									</Button>
+									<Button
+										size="sm"
+										variant={mode === "register" ? "solid" : "outline"}
+										bg={
+											mode === "register"
+												? "rgba(122, 162, 247, 0.22)"
+												: "transparent"
+										}
+										color={mode === "register" ? "#dfe8ff" : "app.textDim"}
+										borderColor="app.borderLight"
+										onClick={() => setMode("register")}
+									>
+										Register
+									</Button>
+								</Flex>
+
+								<Flex
+									direction="column"
+									gap={2}
+									maxW="360px"
+									as="form"
+									onSubmit={(event) => {
+										event.preventDefault();
+										void onLocalAuth(mode);
+									}}
+								>
+									<Input
+										value={username}
+										onChange={(event) => setUsername(event.target.value)}
+										placeholder="Username"
+										autoComplete="username"
+										bg="app.bgHover"
+										borderColor="app.border"
+										color="app.textBright"
+										fontSize="0.85rem"
+										required
+									/>
+									{mode === "register" ? (
+										<Input
+											value={displayName}
+											onChange={(event) => setDisplayName(event.target.value)}
+											placeholder="Display name (optional)"
+											autoComplete="name"
+											bg="app.bgHover"
+											borderColor="app.border"
+											color="app.textBright"
+											fontSize="0.85rem"
+										/>
+									) : null}
+									<Input
+										type="password"
+										value={password}
+										onChange={(event) => setPassword(event.target.value)}
+										placeholder={
+											mode === "register"
+												? "Password (min 8 characters)"
+												: "Password"
+										}
+										autoComplete={
+											mode === "register" ? "new-password" : "current-password"
+										}
+										bg="app.bgHover"
+										borderColor="app.border"
+										color="app.textBright"
+										fontSize="0.85rem"
+										required
+									/>
+									<Button
+										type="submit"
+										alignSelf="flex-start"
+										disabled={busy || !username.trim() || !password}
+										bg="rgba(146, 214, 163, 0.16)"
+										color="#92d6a3"
+										border="1px solid"
+										borderColor="rgba(146, 214, 163, 0.35)"
+										_hover={{ bg: "rgba(146, 214, 163, 0.24)" }}
+									>
+										{mode === "register"
+											? "Create account"
+											: "Log in with password"}
+									</Button>
+								</Flex>
+							</Box>
+						) : null}
+
+						{githubConfigured || config === null ? (
+							<Button
+								bg="rgba(122, 162, 247, 0.18)"
+								color="#dfe8ff"
+								border="1px solid"
+								borderColor="rgba(122, 162, 247, 0.35)"
+								_hover={{ bg: "rgba(122, 162, 247, 0.28)" }}
+								onClick={() => {
+									window.location.href = githubLoginUrl();
+								}}
+								disabled={busy}
+							>
+								Sign in with GitHub
+							</Button>
+						) : (
+							<Text color="app.textDim" fontSize="0.8rem">
+								GitHub OAuth is not configured on this API. Use a local account
+								above.
+							</Text>
+						)}
+					</Box>
 				) : (
 					<Box>
 						<Flex
@@ -323,8 +470,9 @@ export default function AuthPanel() {
 							</>
 						) : (
 							<Text color="app.textDim" fontSize="0.85rem">
-								You are authenticated with an API token. Use a GitHub session on
-								this site to create or revoke tokens.
+								You are authenticated with an API token. Use a browser session
+								(local account or GitHub) on this site to create or revoke
+								tokens.
 							</Text>
 						)}
 					</Box>
