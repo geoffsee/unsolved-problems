@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Pre-fetches frontier research news from Perigon at build time.
  * Outputs:
@@ -7,20 +7,70 @@
  * - public/data/news-history/index.json
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+const OUTPUT_PATH = "public/data/news.json";
+const HISTORY_DIR = "public/data/news-history";
 
-function loadApiKey() {
-	try {
-		const text = readFileSync(".env.secrets", "utf-8");
-		for (const line of text.split("\n")) {
-			const [key, ...rest] = line.split("=");
-			if (key.trim() === "PERIGON_API_KEY") return rest.join("=").trim();
-		}
-	} catch {}
-	return process.env.PERIGON_API_KEY || "";
+interface RawArticle {
+	title: string;
+	url: string;
+	domain: string;
+	seendate: string;
 }
 
-function normalize(t) {
+interface NewsSource {
+	domain: string;
+	url: string;
+}
+
+interface NewsStory {
+	title: string;
+	seendate: string;
+	sources: NewsSource[];
+}
+
+interface NewsOutput {
+	fetchedAt: string;
+	totalArticles: number;
+	articles: NewsStory[];
+}
+
+interface ArchiveEntry {
+	date: string;
+	fetchedAt: string;
+	storyCount: number;
+	articleCount: number;
+	path: string;
+}
+
+interface ArchiveIndex {
+	updatedAt?: string;
+	snapshots: ArchiveEntry[];
+}
+
+interface PerigonArticle {
+	title: string;
+	url: string;
+	pubDate: string;
+	source?: { domain?: string };
+}
+
+interface PerigonResponse {
+	articles?: PerigonArticle[];
+}
+
+async function loadApiKey(): Promise<string> {
+	const secrets = Bun.file(".env.secrets");
+	if (await secrets.exists()) {
+		const text = await secrets.text();
+		for (const line of text.split("\n")) {
+			const [key, ...rest] = line.split("=");
+			if (key?.trim() === "PERIGON_API_KEY") return rest.join("=").trim();
+		}
+	}
+	return Bun.env.PERIGON_API_KEY || "";
+}
+
+function normalize(t: string): string {
 	return t
 		.toLowerCase()
 		.replace(/['']/g, "'")
@@ -28,8 +78,8 @@ function normalize(t) {
 		.trim();
 }
 
-function groupArticles(articles) {
-	const groups = [];
+function groupArticles(articles: RawArticle[]): NewsStory[] {
+	const groups: NewsStory[] = [];
 	for (const article of articles) {
 		const key = normalize(article.title);
 		const existing = groups.find((g) => normalize(g.title) === key);
@@ -48,31 +98,30 @@ function groupArticles(articles) {
 	return groups;
 }
 
-function buildSnapshotDate(isoTimestamp) {
+function buildSnapshotDate(isoTimestamp: string): string {
 	return isoTimestamp.slice(0, 10);
 }
 
-function loadArchiveIndex(path) {
-	if (!existsSync(path)) return { snapshots: [] };
+async function loadArchiveIndex(path: string): Promise<ArchiveIndex> {
+	const file = Bun.file(path);
+	if (!(await file.exists())) return { snapshots: [] };
 	try {
-		return JSON.parse(readFileSync(path, "utf-8"));
+		return (await file.json()) as ArchiveIndex;
 	} catch {
 		return { snapshots: [] };
 	}
 }
 
-function saveArchive(output) {
+async function saveArchive(output: NewsOutput) {
 	const snapshotDate = buildSnapshotDate(output.fetchedAt);
-	const historyDir = "public/data/news-history";
-	const snapshotPath = `${historyDir}/${snapshotDate}.json`;
-	const indexPath = `${historyDir}/index.json`;
+	const snapshotPath = `${HISTORY_DIR}/${snapshotDate}.json`;
+	const indexPath = `${HISTORY_DIR}/index.json`;
 
-	mkdirSync(historyDir, { recursive: true });
-	writeFileSync(snapshotPath, JSON.stringify(output, null, 2));
+	await Bun.write(snapshotPath, JSON.stringify(output, null, 2));
 
-	const existing = loadArchiveIndex(indexPath);
+	const existing = await loadArchiveIndex(indexPath);
 	const snapshots = Array.isArray(existing.snapshots) ? existing.snapshots : [];
-	const nextEntry = {
+	const nextEntry: ArchiveEntry = {
 		date: snapshotDate,
 		fetchedAt: output.fetchedAt,
 		storyCount: output.articles.length,
@@ -84,7 +133,7 @@ function saveArchive(output) {
 	filtered.push(nextEntry);
 	filtered.sort((a, b) => b.date.localeCompare(a.date));
 
-	writeFileSync(
+	await Bun.write(
 		indexPath,
 		JSON.stringify(
 			{
@@ -99,13 +148,13 @@ function saveArchive(output) {
 	return {
 		snapshotDate,
 		snapshotPath,
-		historyDir,
+		historyDir: HISTORY_DIR,
 		snapshotCount: filtered.length,
 	};
 }
 
-async function main() {
-	const apiKey = loadApiKey();
+async function main(): Promise<void> {
+	const apiKey = await loadApiKey();
 	if (!apiKey) {
 		console.error("No PERIGON_API_KEY found in .env.secrets or environment");
 		process.exit(1);
@@ -129,8 +178,8 @@ async function main() {
 		throw new Error(`Perigon API error: ${res.status} ${await res.text()}`);
 	}
 
-	const data = await res.json();
-	const articles = (data.articles || []).map((a) => ({
+	const data = (await res.json()) as PerigonResponse;
+	const articles: RawArticle[] = (data.articles || []).map((a) => ({
 		title: a.title,
 		url: a.url,
 		domain: a.source?.domain || "unknown",
@@ -140,18 +189,17 @@ async function main() {
 	const grouped = groupArticles(articles);
 	const fetchedAt = new Date().toISOString();
 
-	const output = {
+	const output: NewsOutput = {
 		fetchedAt,
 		totalArticles: articles.length,
 		articles: grouped,
 	};
 
-	mkdirSync("public/data", { recursive: true });
-	writeFileSync("public/data/news.json", JSON.stringify(output, null, 2));
-	const archive = saveArchive(output);
+	await Bun.write(OUTPUT_PATH, JSON.stringify(output, null, 2));
+	const archive = await saveArchive(output);
 
 	console.log(
-		`Done. ${grouped.length} stories (${articles.length} articles) written to public/data/news.json`,
+		`Done. ${grouped.length} stories (${articles.length} articles) written to ${OUTPUT_PATH}`,
 	);
 	console.log(
 		`Archived snapshot for ${archive.snapshotDate} at ${archive.snapshotPath} (${archive.snapshotCount} total snapshots)`,

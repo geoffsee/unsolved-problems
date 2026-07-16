@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Pre-fetches all unsolved-problem data from Wikipedia at build time.
  * Output: public/data/problems.json
@@ -7,12 +7,12 @@
  * without waiting for runtime API calls.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
 import { parseHTML } from "linkedom";
 
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
+const OUTPUT_PATH = "public/data/problems.json";
 
-const CATEGORIES = {
+const CATEGORIES: Record<string, string> = {
 	mathematics: "List_of_unsolved_problems_in_mathematics",
 	physics: "List_of_unsolved_problems_in_physics",
 	"computer science": "List_of_unsolved_problems_in_computer_science",
@@ -35,7 +35,28 @@ const SKIP_HEADINGS = new Set([
 	"bibliography",
 ]);
 
-async function wikiRequest(params, retries = 3) {
+interface WikiSection {
+	line?: string;
+	toclevel: string;
+	index: string;
+}
+
+interface WikiParseResponse {
+	parse?: {
+		sections?: WikiSection[];
+		text?: { "*": string };
+	};
+}
+
+interface ProblemSection {
+	heading: string;
+	problems: string[];
+}
+
+async function wikiRequest(
+	params: Record<string, string | number | boolean>,
+	retries = 3,
+): Promise<WikiParseResponse> {
 	const url = new URL(WIKI_API);
 	url.searchParams.set("format", "json");
 	url.searchParams.set("origin", "*");
@@ -44,27 +65,29 @@ async function wikiRequest(params, retries = 3) {
 	}
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		const res = await fetch(url, {
-			headers: { "User-Agent": "UnsolvedProblemsFetcher/1.0 (Build; Node)" },
+			headers: { "User-Agent": "UnsolvedProblemsFetcher/1.0 (Build; Bun)" },
 		});
-		if (res.ok) return res.json();
+		if (res.ok) return (await res.json()) as WikiParseResponse;
 		if (res.status === 429 && attempt < retries) {
 			const wait = (attempt + 1) * 5000;
 			console.log(`    Rate limited, waiting ${wait / 1000}s...`);
-			await new Promise((r) => setTimeout(r, wait));
+			await Bun.sleep(wait);
 			continue;
 		}
 		throw new Error(`Wikipedia API ${res.status}`);
 	}
+	throw new Error("Wikipedia API request failed");
 }
 
-function cleanText(text) {
-	text = text.replace(/\{\\displaystyle\s*([^}]*)\}/g, "$1");
-	text = text.replace(/\\displaystyle\s*/g, "");
-	text = text.replace(/\s+/g, " ").trim();
-	return text;
+function cleanText(text: string): string {
+	return text
+		.replace(/\{\\displaystyle\s*([^}]*)\}/g, "$1")
+		.replace(/\\displaystyle\s*/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
 }
 
-function removeCitations(el) {
+function removeCitations(el: Element): void {
 	for (const node of el.querySelectorAll(
 		"sup, .reference, .mw-cite-backlink",
 	)) {
@@ -72,16 +95,15 @@ function removeCitations(el) {
 	}
 }
 
-function htmlToListItems(html) {
+function htmlToListItems(html: string): string[] {
 	const { document: doc } = parseHTML(html);
-	const items = [];
-	const seen = new Set();
+	const items: string[] = [];
+	const seen = new Set<string>();
 
-	// Try <li> items first
 	for (const li of doc.querySelectorAll("li")) {
 		if (li.closest(".reflist, .references, .mw-references-wrap")) continue;
 		removeCitations(li);
-		const text = cleanText(li.textContent);
+		const text = cleanText(li.textContent ?? "");
 		if (/^\^/.test(text)) continue;
 		if (text.length < 15) continue;
 		if (seen.has(text)) continue;
@@ -89,11 +111,10 @@ function htmlToListItems(html) {
 		items.push(text);
 	}
 
-	// Fallback: extract <p> content if no list items found (e.g. philosophy)
 	if (items.length === 0) {
 		for (const p of doc.querySelectorAll("p")) {
 			removeCitations(p);
-			const text = cleanText(p.textContent);
+			const text = cleanText(p.textContent ?? "");
 			if (text.length < 30) continue;
 			if (seen.has(text)) continue;
 			seen.add(text);
@@ -104,11 +125,11 @@ function htmlToListItems(html) {
 	return items;
 }
 
-function stripHtml(str) {
+function stripHtml(str: string): string {
 	return str.replace(/<[^>]+>/g, "").trim();
 }
 
-async function fetchCategory(key) {
+async function fetchCategory(key: string): Promise<ProblemSection[]> {
 	const page = CATEGORIES[key];
 	console.log(`  [${key}] fetching sections...`);
 
@@ -119,16 +140,16 @@ async function fetchCategory(key) {
 		redirects: true,
 	});
 	const sections = sectionsData.parse?.sections || [];
-	const result = [];
+	const result: ProblemSection[] = [];
 
 	for (const sec of sections) {
 		const heading = stripHtml(sec.line || "");
 		const headingLower = heading.toLowerCase();
 		if (SKIP_HEADINGS.has(headingLower)) continue;
 		if (headingLower.includes("solved")) continue;
-		if (parseInt(sec.toclevel, 10) > 2) continue;
+		if (Number.parseInt(sec.toclevel, 10) > 2) continue;
 
-		await new Promise((r) => setTimeout(r, 200));
+		await Bun.sleep(200);
 		const htmlData = await wikiRequest({
 			action: "parse",
 			page,
@@ -149,21 +170,20 @@ async function fetchCategory(key) {
 	return result;
 }
 
-async function main() {
+async function main(): Promise<void> {
 	console.log("Fetching unsolved problems from Wikipedia...\n");
-	const data = {};
+	const data: Record<string, ProblemSection[]> = {};
 
 	const keys = Object.keys(CATEGORIES);
-	for (let i = 0; i < keys.length; i++) {
-		const key = keys[i];
+	for (const [i, key] of keys.entries()) {
 		try {
 			data[key] = await fetchCategory(key);
 		} catch (err) {
-			console.error(`  [${key}] FAILED: ${err.message}`);
+			const message = err instanceof Error ? err.message : String(err);
+			console.error(`  [${key}] FAILED: ${message}`);
 			data[key] = [];
 		}
-		// Small delay between categories to avoid Wikipedia rate limiting
-		if (i < keys.length - 1) await new Promise((r) => setTimeout(r, 1000));
+		if (i < keys.length - 1) await Bun.sleep(1000);
 	}
 
 	const output = {
@@ -171,16 +191,13 @@ async function main() {
 		categories: data,
 	};
 
-	mkdirSync("public/data", { recursive: true });
-	writeFileSync("public/data/problems.json", JSON.stringify(output, null, 2));
+	await Bun.write(OUTPUT_PATH, JSON.stringify(output, null, 2));
 
 	const totalProblems = Object.values(data)
 		.flat()
 		.reduce((n, s) => n + s.problems.length, 0);
 
-	console.log(
-		`\nDone. ${totalProblems} problems written to public/data/problems.json`,
-	);
+	console.log(`\nDone. ${totalProblems} problems written to ${OUTPUT_PATH}`);
 }
 
 main().catch((err) => {

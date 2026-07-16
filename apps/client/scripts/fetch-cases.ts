@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Pre-fetches official FBI ViCAP case listings with a real browser session.
  * Outputs:
@@ -7,18 +7,55 @@
  * - public/data/case-history/index.json
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { chromium } from "playwright";
+import { type BrowserContext, chromium, type LaunchOptions } from "playwright";
+import type { CaseCategoryData, CaseItem } from "../lib/cases";
 
 const OUTPUT_PATH = "public/data/cases.json";
 const HISTORY_DIR = "public/data/case-history";
 const MAX_WAIT_MS = 120000;
-const DETAIL_CONCURRENCY = Number(process.env.VICAP_DETAIL_CONCURRENCY || 4);
+const DETAIL_CONCURRENCY = Number(Bun.env.VICAP_DETAIL_CONCURRENCY || 4);
 const SOURCE_NAME = "FBI ViCAP";
 const DISCLAIMER =
 	"Official public FBI ViCAP listings. Availability depends on what agencies publish publicly and is not a comprehensive national registry.";
 
-const SOURCES = [
+interface CaseSource {
+	key: string;
+	label: string;
+	heading: string;
+	sourceSection: string;
+	url: string;
+}
+
+interface CasesFile {
+	fetchedAt?: string;
+	sourceName?: string;
+	categories?: Record<string, CaseCategoryData>;
+}
+
+interface ArchiveEntry {
+	date: string;
+	fetchedAt: string;
+	totalCases: number;
+	categories: Record<string, number>;
+	path: string;
+}
+
+interface ArchiveIndex {
+	updatedAt?: string;
+	snapshots: ArchiveEntry[];
+}
+
+interface DetailPayload {
+	title: string | null;
+	bodyText: string;
+}
+
+interface ListingResult {
+	total: number;
+	items: CaseItem[];
+}
+
+const SOURCES: CaseSource[] = [
 	{
 		key: "missing persons",
 		label: "Missing Persons",
@@ -38,36 +75,42 @@ const SOURCES = [
 const USER_AGENT =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 
-function buildSnapshotDate(isoTimestamp) {
+function buildSnapshotDate(isoTimestamp: string): string {
 	return isoTimestamp.slice(0, 10);
 }
 
-function loadJson(path, fallback) {
-	if (!existsSync(path)) return fallback;
+async function loadJson<T>(path: string, fallback: T): Promise<T> {
+	const file = Bun.file(path);
+	if (!(await file.exists())) return fallback;
 	try {
-		return JSON.parse(readFileSync(path, "utf-8"));
+		return (await file.json()) as T;
 	} catch {
 		return fallback;
 	}
 }
 
-function loadExistingCategories() {
-	return loadJson(OUTPUT_PATH, { categories: {} }).categories || {};
+async function loadExistingCategories(): Promise<
+	Record<string, CaseCategoryData>
+> {
+	const data = await loadJson<CasesFile>(OUTPUT_PATH, { categories: {} });
+	return data.categories || {};
 }
 
-function loadArchiveIndex(path) {
+async function loadArchiveIndex(path: string): Promise<ArchiveIndex> {
 	return loadJson(path, { snapshots: [] });
 }
 
-function saveArchive(output) {
+async function saveArchive(output: {
+	fetchedAt: string;
+	categories: Record<string, CaseCategoryData>;
+}) {
 	const snapshotDate = buildSnapshotDate(output.fetchedAt);
 	const snapshotPath = `${HISTORY_DIR}/${snapshotDate}.json`;
 	const indexPath = `${HISTORY_DIR}/index.json`;
 
-	mkdirSync(HISTORY_DIR, { recursive: true });
-	writeFileSync(snapshotPath, JSON.stringify(output, null, 2));
+	await Bun.write(snapshotPath, JSON.stringify(output, null, 2));
 
-	const existing = loadArchiveIndex(indexPath);
+	const existing = await loadArchiveIndex(indexPath);
 	const snapshots = Array.isArray(existing.snapshots) ? existing.snapshots : [];
 	const categoryCounts = Object.fromEntries(
 		Object.entries(output.categories).map(([key, value]) => [
@@ -80,7 +123,7 @@ function saveArchive(output) {
 		0,
 	);
 
-	const nextEntry = {
+	const nextEntry: ArchiveEntry = {
 		date: snapshotDate,
 		fetchedAt: output.fetchedAt,
 		totalCases,
@@ -92,7 +135,7 @@ function saveArchive(output) {
 	filtered.push(nextEntry);
 	filtered.sort((a, b) => b.date.localeCompare(a.date));
 
-	writeFileSync(
+	await Bun.write(
 		indexPath,
 		JSON.stringify(
 			{
@@ -112,9 +155,9 @@ function saveArchive(output) {
 	};
 }
 
-function resolveExecutablePath() {
-	const explicit = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
-	if (explicit && existsSync(explicit)) return explicit;
+async function resolveExecutablePath(): Promise<string | null> {
+	const explicit = Bun.env.PLAYWRIGHT_EXECUTABLE_PATH;
+	if (explicit && (await Bun.file(explicit).exists())) return explicit;
 
 	const candidates = [
 		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -125,12 +168,15 @@ function resolveExecutablePath() {
 		"/usr/bin/chromium-browser",
 	];
 
-	return candidates.find((candidate) => existsSync(candidate)) || null;
+	for (const candidate of candidates) {
+		if (await Bun.file(candidate).exists()) return candidate;
+	}
+	return null;
 }
 
-function createLaunchOptions() {
-	const executablePath = resolveExecutablePath();
-	const options = {
+async function createLaunchOptions(): Promise<LaunchOptions> {
+	const executablePath = await resolveExecutablePath();
+	const options: LaunchOptions = {
 		headless: true,
 		args: [
 			"--disable-blink-features=AutomationControlled",
@@ -147,22 +193,26 @@ function createLaunchOptions() {
 	return options;
 }
 
-function normalizeLine(raw) {
+function normalizeLine(raw: string): string {
 	return raw
 		.replace(/\u00a0/g, " ")
 		.replace(/[ ]+/g, " ")
 		.trim();
 }
 
-function toLines(text) {
+function toLines(text: string): string[] {
 	return text.split("\n").map(normalizeLine).filter(Boolean);
 }
 
-function looksLikeDate(line) {
+function looksLikeDate(line: string): boolean {
 	return /^[A-Z][a-z]+ \d{1,2}, \d{4}$/.test(line);
 }
 
-function extractSection(lines, startLabel, endLabels) {
+function extractSection(
+	lines: string[],
+	startLabel: string,
+	endLabels: string[],
+): string | null {
 	const start = lines.indexOf(startLabel);
 	if (start === -1) return null;
 
@@ -181,7 +231,7 @@ function extractSection(lines, startLabel, endLabels) {
 	return body.length ? body.join(" ") : null;
 }
 
-function parseFacts(lines) {
+function parseFacts(lines: string[]): Record<string, string> {
 	const start = lines.indexOf("English");
 	if (start === -1) return {};
 
@@ -192,7 +242,7 @@ function parseFacts(lines) {
 		"Reward:",
 		"Caution:",
 	]);
-	const facts = {};
+	const facts: Record<string, string> = {};
 
 	for (const line of lines.slice(start + 1)) {
 		if (stopLabels.has(line)) break;
@@ -200,15 +250,16 @@ function parseFacts(lines) {
 			.split("\t")
 			.map((part) => part.trim())
 			.filter(Boolean);
-		if (parts.length >= 2) {
-			facts[parts[0]] = parts.slice(1).join(" ");
+		const [label, ...values] = parts;
+		if (label && values.length > 0) {
+			facts[label] = values.join(" ");
 		}
 	}
 
 	return facts;
 }
 
-function parseDetailPayload(item, payload) {
+function parseDetailPayload(item: CaseItem, payload: DetailPayload): CaseItem {
 	const title = payload.title || item.title;
 	const lines = toLines(payload.bodyText || "");
 	const titleIndex = lines.indexOf(title);
@@ -220,8 +271,8 @@ function parseDetailPayload(item, payload) {
 		(line) => !["View Poster", "Download Poster", "English"].includes(line),
 	);
 
-	let reportedDate = null;
-	let location = null;
+	let reportedDate: string | null = null;
+	let location: string | null = null;
 	for (const line of headerLines) {
 		if (!reportedDate && looksLikeDate(line)) {
 			reportedDate = line;
@@ -243,7 +294,12 @@ function parseDetailPayload(item, payload) {
 	};
 }
 
-function buildFallbackCategory(source, existing, fetchedAt, error) {
+function buildFallbackCategory(
+	source: CaseSource,
+	existing: CaseCategoryData | undefined,
+	fetchedAt: string,
+	error: Error,
+): CaseCategoryData {
 	if (existing) {
 		return {
 			...existing,
@@ -275,7 +331,10 @@ function buildFallbackCategory(source, existing, fetchedAt, error) {
 	};
 }
 
-async function waitForListings(page, source) {
+async function waitForListings(
+	page: Awaited<ReturnType<BrowserContext["newPage"]>>,
+	source: CaseSource,
+): Promise<void> {
 	await page.waitForFunction(
 		(heading) => {
 			const title = document.title || "";
@@ -300,7 +359,10 @@ async function waitForListings(page, source) {
 	);
 }
 
-async function expandListings(page, source) {
+async function expandListings(
+	page: Awaited<ReturnType<BrowserContext["newPage"]>>,
+	source: CaseSource,
+): Promise<void> {
 	for (let attempt = 0; attempt < 50; attempt++) {
 		const button = page.locator("button.load-more").first();
 		const exists = (await button.count()) > 0;
@@ -324,7 +386,10 @@ async function expandListings(page, source) {
 	throw new Error(`Exceeded pagination safety limit for ${source.key}`);
 }
 
-async function scrapeListing(context, source) {
+async function scrapeListing(
+	context: BrowserContext,
+	source: CaseSource,
+): Promise<ListingResult> {
 	const page = await context.newPage();
 	try {
 		console.log(`  [${source.key}] opening ${source.url}`);
@@ -341,14 +406,15 @@ async function scrapeListing(context, source) {
 			const items = [...document.querySelectorAll("li.portal-type-person")]
 				.map((card) => {
 					const nameLink = card.querySelector("p.name a");
-					if (!nameLink) return null;
+					if (!nameLink || !(nameLink instanceof HTMLAnchorElement))
+						return null;
 
 					const img = card.querySelector("img");
 					return {
 						id: new URL(nameLink.href).pathname.replace(/^\/+/, ""),
 						title: nameLink.textContent?.trim() || "",
 						url: nameLink.href,
-						imageUrl: img?.src || null,
+						imageUrl: img instanceof HTMLImageElement ? img.src : null,
 						sourceName: "FBI ViCAP",
 						sourceSection: section,
 						sourceUrl: location.href,
@@ -359,18 +425,18 @@ async function scrapeListing(context, source) {
 						remarks: null,
 					};
 				})
-				.filter(Boolean);
+				.filter((item): item is NonNullable<typeof item> => Boolean(item));
 
 			return {
-				total: totalMatch
+				total: totalMatch?.[1]
 					? Number(totalMatch[1].replace(/,/g, ""))
 					: items.length,
 				items,
 			};
 		}, source.sourceSection);
 
-		const dedupedItems = [];
-		const seen = new Set();
+		const dedupedItems: CaseItem[] = [];
+		const seen = new Set<string>();
 		for (const item of listing.items) {
 			if (seen.has(item.url)) continue;
 			seen.add(item.url);
@@ -386,12 +452,15 @@ async function scrapeListing(context, source) {
 	}
 }
 
-function splitExistingDetails(items, existingItems) {
+function splitExistingDetails(
+	items: CaseItem[],
+	existingItems: CaseItem[] | undefined,
+) {
 	const existingByUrl = new Map(
 		(existingItems || []).map((item) => [item.url, item]),
 	);
-	const hydrated = [];
-	const pending = [];
+	const hydrated: CaseItem[] = [];
+	const pending: CaseItem[] = [];
 
 	for (const item of items) {
 		const existing = existingByUrl.get(item.url);
@@ -405,7 +474,7 @@ function splitExistingDetails(items, existingItems) {
 				existing.location ||
 				Object.keys(existing.facts || {}).length);
 
-		if (canReuse) {
+		if (canReuse && existing) {
 			hydrated.push({
 				...item,
 				reportedDate: existing.reportedDate || null,
@@ -422,7 +491,10 @@ function splitExistingDetails(items, existingItems) {
 	return { hydrated, pending };
 }
 
-async function scrapeDetail(context, item) {
+async function scrapeDetail(
+	context: BrowserContext,
+	item: CaseItem,
+): Promise<CaseItem> {
 	const page = await context.newPage();
 	try {
 		await page.goto(item.url, {
@@ -454,25 +526,29 @@ async function scrapeDetail(context, item) {
 	}
 }
 
-async function enrichPendingDetails(context, items) {
+async function enrichPendingDetails(
+	context: BrowserContext,
+	items: CaseItem[],
+): Promise<CaseItem[]> {
 	if (items.length === 0) return [];
 
-	const results = new Array(items.length);
+	const results = new Array<CaseItem>(items.length);
 	let cursor = 0;
 
 	async function worker() {
 		while (true) {
 			const current = cursor++;
-			if (current >= items.length) return;
-
 			const item = items[current];
+			if (!item) return;
+
 			try {
 				results[current] = await scrapeDetail(context, item);
 				console.log(
 					`    [detail] ${current + 1}/${items.length} ${item.title}`,
 				);
 			} catch (error) {
-				console.warn(`    [detail] failed for ${item.title}: ${error.message}`);
+				const message = error instanceof Error ? error.message : String(error);
+				console.warn(`    [detail] failed for ${item.title}: ${message}`);
 				results[current] = item;
 			}
 		}
@@ -486,7 +562,12 @@ async function enrichPendingDetails(context, items) {
 	return results;
 }
 
-async function scrapeSource(context, source, existingCategory, fetchedAt) {
+async function scrapeSource(
+	context: BrowserContext,
+	source: CaseSource,
+	existingCategory: CaseCategoryData | undefined,
+	fetchedAt: string,
+): Promise<CaseCategoryData> {
 	const listing = await scrapeListing(context, source);
 	const { hydrated, pending } = splitExistingDetails(
 		listing.items,
@@ -514,12 +595,12 @@ async function scrapeSource(context, source, existingCategory, fetchedAt) {
 	};
 }
 
-async function main() {
+async function main(): Promise<void> {
 	console.log("Fetching FBI ViCAP case listings with Playwright...\n");
 
 	const fetchedAt = new Date().toISOString();
-	const existingCategories = loadExistingCategories();
-	const browser = await chromium.launch(createLaunchOptions());
+	const existingCategories = await loadExistingCategories();
+	const browser = await chromium.launch(await createLaunchOptions());
 	const context = await browser.newContext({
 		userAgent: USER_AGENT,
 		viewport: { width: 1440, height: 1024 },
@@ -527,7 +608,7 @@ async function main() {
 		timezoneId: "America/New_York",
 	});
 
-	const categories = {};
+	const categories: Record<string, CaseCategoryData> = {};
 
 	try {
 		for (const source of SOURCES) {
@@ -539,12 +620,13 @@ async function main() {
 					fetchedAt,
 				);
 			} catch (error) {
-				console.warn(`  [${source.key}] fetch failed: ${error.message}`);
+				const err = error instanceof Error ? error : new Error(String(error));
+				console.warn(`  [${source.key}] fetch failed: ${err.message}`);
 				categories[source.key] = buildFallbackCategory(
 					source,
 					existingCategories[source.key],
 					fetchedAt,
-					error,
+					err,
 				);
 			}
 		}
@@ -559,9 +641,8 @@ async function main() {
 		categories,
 	};
 
-	mkdirSync("public/data", { recursive: true });
-	writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2));
-	const archive = saveArchive(output);
+	await Bun.write(OUTPUT_PATH, JSON.stringify(output, null, 2));
+	const archive = await saveArchive(output);
 
 	console.log(
 		`\nDone. ${archive.totalCases} case listings written to ${OUTPUT_PATH} and archived at ${archive.snapshotPath} (${archive.snapshotCount} total snapshots)`,

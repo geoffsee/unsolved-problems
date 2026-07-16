@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-
+#!/usr/bin/env bun
 /**
  * Enriches problem data with AI-generated summaries using the Anthropic SDK.
  *
@@ -8,9 +7,9 @@
  * only processes problems not already in the enrichments cache.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
+import type { EnrichmentProblem, Section } from "../lib/wiki";
 
 const PROBLEMS_PATH = resolve("public/data/problems.json");
 const ENRICHMENTS_PATH = resolve("public/data/enrichments.json");
@@ -20,13 +19,27 @@ const BATCH_SIZE = 20;
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 2000;
 
-function makeKey(text) {
+interface ProblemItem {
+	category: string;
+	heading: string;
+	text: string;
+}
+
+interface ProblemsFile {
+	categories: Record<string, Section[]>;
+}
+
+interface EnrichmentsFile {
+	problems?: Record<string, EnrichmentProblem>;
+}
+
+function makeKey(text: string): string {
 	return text.slice(0, 120);
 }
 
-function loadProblems() {
-	const raw = JSON.parse(readFileSync(PROBLEMS_PATH, "utf-8"));
-	const items = [];
+async function loadProblems(): Promise<ProblemItem[]> {
+	const raw = (await Bun.file(PROBLEMS_PATH).json()) as ProblemsFile;
+	const items: ProblemItem[] = [];
 	for (const [category, sections] of Object.entries(raw.categories)) {
 		for (const sec of sections) {
 			for (const text of sec.problems) {
@@ -37,17 +50,20 @@ function loadProblems() {
 	return items;
 }
 
-function loadExistingEnrichments() {
-	if (!existsSync(ENRICHMENTS_PATH)) return {};
+async function loadExistingEnrichments(): Promise<
+	Record<string, EnrichmentProblem>
+> {
+	const file = Bun.file(ENRICHMENTS_PATH);
+	if (!(await file.exists())) return {};
 	try {
-		const raw = JSON.parse(readFileSync(ENRICHMENTS_PATH, "utf-8"));
+		const raw = (await file.json()) as EnrichmentsFile;
 		return raw.problems || {};
 	} catch {
 		return {};
 	}
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt(): string {
 	return `You generate structured metadata about unsolved scientific problems.
 For each problem, return a JSON object with exactly these fields:
 - "summary": 1-2 sentence plain-language explanation accessible to a non-specialist
@@ -59,15 +75,19 @@ Return a JSON array with one object per problem, in the same order as the input.
 Output ONLY valid JSON — no markdown fences, no commentary.`;
 }
 
-function buildUserPrompt(batch) {
+function buildUserPrompt(batch: ProblemItem[]): string {
 	const lines = batch.map(
 		(p, i) => `${i + 1}. [${p.category} / ${p.heading}] "${p.text}"`,
 	);
 	return `Generate metadata for these ${batch.length} unsolved problems:\n\n${lines.join("\n")}`;
 }
 
-async function callWithRetry(client, messages, systemPrompt) {
-	let lastError;
+async function callWithRetry(
+	client: Anthropic,
+	messages: Anthropic.MessageParam[],
+	systemPrompt: string,
+): Promise<EnrichmentProblem[]> {
+	let lastError: unknown;
 	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
 		try {
 			const response = await client.messages.create({
@@ -76,14 +96,24 @@ async function callWithRetry(client, messages, systemPrompt) {
 				system: systemPrompt,
 				messages,
 			});
-			const text = response.content[0].text;
-			return JSON.parse(text);
+			const block = response.content[0];
+			if (block?.type !== "text") {
+				throw new Error("Unexpected Anthropic response content");
+			}
+			return JSON.parse(block.text) as EnrichmentProblem[];
 		} catch (err) {
 			lastError = err;
-			if (err.status === 429 || (err.status >= 500 && err.status < 600)) {
+			const status =
+				err && typeof err === "object" && "status" in err
+					? Number(err.status)
+					: undefined;
+			if (
+				status === 429 ||
+				(status !== undefined && status >= 500 && status < 600)
+			) {
 				const delay = INITIAL_BACKOFF_MS * 2 ** attempt;
-				console.warn(`  Retrying in ${delay}ms (${err.status})...`);
-				await new Promise((r) => setTimeout(r, delay));
+				console.warn(`  Retrying in ${delay}ms (${status})...`);
+				await Bun.sleep(delay);
 				continue;
 			}
 			throw err;
@@ -92,22 +122,24 @@ async function callWithRetry(client, messages, systemPrompt) {
 	throw lastError;
 }
 
-function saveEnrichments(existing) {
+async function saveEnrichments(
+	existing: Record<string, EnrichmentProblem>,
+): Promise<void> {
 	const output = {
 		generatedAt: new Date().toISOString(),
 		model: MODEL,
 		problems: existing,
 	};
-	writeFileSync(ENRICHMENTS_PATH, JSON.stringify(output, null, 2));
+	await Bun.write(ENRICHMENTS_PATH, JSON.stringify(output, null, 2));
 }
 
-async function main() {
-	if (!process.env.ANTHROPIC_API_KEY) {
+async function main(): Promise<void> {
+	if (!Bun.env.ANTHROPIC_API_KEY) {
 		console.warn("ANTHROPIC_API_KEY not set — skipping enrichment.");
 		return;
 	}
 
-	if (!existsSync(PROBLEMS_PATH)) {
+	if (!(await Bun.file(PROBLEMS_PATH).exists())) {
 		console.warn("No problems.json found — run fetch-data first.");
 		return;
 	}
@@ -115,10 +147,9 @@ async function main() {
 	console.log("Enriching problem data with AI...\n");
 
 	const client = new Anthropic();
-	const allProblems = loadProblems();
-	const existing = loadExistingEnrichments();
+	const allProblems = await loadProblems();
+	const existing = await loadExistingEnrichments();
 
-	// Find problems that haven't been enriched yet
 	const needed = allProblems.filter((p) => !existing[makeKey(p.text)]);
 
 	if (needed.length === 0) {
@@ -135,7 +166,6 @@ async function main() {
 	const systemPrompt = buildSystemPrompt();
 	let enrichedCount = 0;
 
-	// Process in batches
 	for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
 		const batch = toProcess.slice(i, i + BATCH_SIZE);
 		const batchNum = Math.floor(i / BATCH_SIZE) + 1;
@@ -153,25 +183,25 @@ async function main() {
 			);
 
 			if (!Array.isArray(results) || results.length !== batch.length) {
-				console.warn(`  Unexpected response length — skipping batch`);
+				console.warn("  Unexpected response length — skipping batch");
 				continue;
 			}
 
-			for (let j = 0; j < batch.length; j++) {
-				const key = makeKey(batch[j].text);
-				existing[key] = results[j];
+			for (const [j, problem] of batch.entries()) {
+				const result = results[j];
+				if (!result) continue;
+				existing[makeKey(problem.text)] = result;
 				enrichedCount++;
 			}
 
-			// Save after each batch so partial results persist
-			saveEnrichments(existing);
+			await saveEnrichments(existing);
 		} catch (err) {
-			console.error(`  Batch ${batchNum} failed: ${err.message} — skipping`);
+			const message = err instanceof Error ? err.message : String(err);
+			console.error(`  Batch ${batchNum} failed: ${message} — skipping`);
 		}
 
-		// Brief pause between batches to respect rate limits
 		if (i + BATCH_SIZE < toProcess.length) {
-			await new Promise((r) => setTimeout(r, 1000));
+			await Bun.sleep(1000);
 		}
 	}
 
@@ -180,6 +210,7 @@ async function main() {
 }
 
 main().catch((err) => {
-	console.error("Enrichment failed:", err.message);
+	const message = err instanceof Error ? err.message : String(err);
+	console.error("Enrichment failed:", message);
 	// Never exit(1) — partial results are already saved
 });
