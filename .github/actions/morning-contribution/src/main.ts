@@ -2,29 +2,42 @@ import { resolve } from "node:path";
 import * as core from "@actions/core";
 import * as exec from "@actions/exec";
 
-export function easternTime() {
+const DAYLIGHT_SCHEDULE = "45 12 * * *";
+const STANDARD_SCHEDULE = "45 13 * * *";
+
+export function easternTime(date = new Date()) {
 	const parts = new Intl.DateTimeFormat("en-US", {
 		timeZone: "America/New_York",
 		hour: "2-digit",
 		minute: "2-digit",
+		timeZoneName: "short",
 		hour12: false,
-	}).formatToParts(new Date());
+	}).formatToParts(date);
+	const timeZoneName = parts.find(
+		(part) => part.type === "timeZoneName",
+	)?.value;
 	return {
 		hour: Number(parts.find((part) => part.type === "hour")?.value),
 		minute: Number(parts.find((part) => part.type === "minute")?.value),
+		isDaylightSavingTime: timeZoneName === "EDT",
 	};
 }
 
-export function shouldRunScheduled(date = new Date()): boolean {
-	const parts = new Intl.DateTimeFormat("en-US", {
-		timeZone: "America/New_York",
-		hour: "2-digit",
-		minute: "2-digit",
-		hour12: false,
-	}).formatToParts(date);
-	const hour = Number(parts.find((part) => part.type === "hour")?.value);
-	const minute = Number(parts.find((part) => part.type === "minute")?.value);
-	return hour === 8 && minute >= 40 && minute <= 55;
+export function shouldRunScheduled(
+	date = new Date(),
+	scheduledCron?: string,
+): boolean {
+	const time = easternTime(date);
+	if (scheduledCron === DAYLIGHT_SCHEDULE) {
+		return time.isDaylightSavingTime;
+	}
+	if (scheduledCron === STANDARD_SCHEDULE) {
+		return !time.isDaylightSavingTime;
+	}
+
+	// Keep the old behavior for callers that do not provide the triggering
+	// cron. Scheduled GitHub runs pass the cron so delayed starts are accepted.
+	return time.hour === 8 && time.minute >= 40 && time.minute <= 55;
 }
 
 function environment(): Record<string, string> {
@@ -55,14 +68,25 @@ async function command(command: string, args: string[], cwd: string) {
 
 export async function run(): Promise<void> {
 	try {
-		if (process.env.GITHUB_EVENT_NAME === "schedule" && !shouldRunScheduled()) {
+		const scheduledCron = core.getInput("scheduled-cron");
+		if (
+			process.env.GITHUB_EVENT_NAME === "schedule" &&
+			!shouldRunScheduled(new Date(), scheduledCron)
+		) {
 			const time = easternTime();
-			if (time.hour !== 8 || time.minute < 40 || time.minute > 55) {
+			if (scheduledCron) {
+				const activeSchedule = time.isDaylightSavingTime
+					? DAYLIGHT_SCHEDULE
+					: STANDARD_SCHEDULE;
+				core.info(
+					`Skipping: ${scheduledCron} is not the active Eastern schedule (${activeSchedule}).`,
+				);
+			} else {
 				core.info(
 					`Skipping: Eastern time is ${time.hour}:${String(time.minute).padStart(2, "0")} (want ~08:45).`,
 				);
-				return;
 			}
+			return;
 		}
 		const root = process.env.GITHUB_WORKSPACE ?? process.cwd();
 		const contributor = resolve(root, "apps/example");

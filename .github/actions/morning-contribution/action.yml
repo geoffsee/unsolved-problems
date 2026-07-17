@@ -16,6 +16,9 @@ inputs:
   searxng-url:
     description: SearXNG endpoint
     required: false
+  scheduled-cron:
+    description: The cron expression that triggered this scheduled run
+    required: false
 runs:
   using: node24
   main: dist/index.js

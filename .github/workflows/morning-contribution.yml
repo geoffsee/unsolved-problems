@@ -29,3 +29,4 @@ jobs:
           openalex-mailto: ${{ secrets.OPENALEX_MAILTO }}
           openalex-api-key: ${{ secrets.OPENALEX_API_KEY }}
           searxng-url: ${{ secrets.SEARXNG_URL }}
+          scheduled-cron: ${{ github.event.schedule }}
